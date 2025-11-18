@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { PerspectiveCamera, Environment, Float, Stars, ContactShadows, OrbitControls } from '@react-three/drei';
+import { PerspectiveCamera, Environment, Float, Stars, ContactShadows, OrbitControls, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -24,84 +24,63 @@ import {
 
 // --- 3D COMPONENTS ---
 
-// Procedural Gear (Background Element)
-const Gear = ({ position, color, speed, size, teeth, ...props }) => {
+// Optimized Instanced Background Objects (Instead of 2 heavy gears)
+const BackgroundInstances = ({ count = 500 }) => {
   const meshRef = useRef();
-  useFrame((state, delta) => {
-    if (meshRef.current) meshRef.current.rotation.z += delta * speed;
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+
+  const positions = useMemo(() => {
+    return Array.from({ length: count }, () => [
+      (0.5 - Math.random()) * 20,
+      (0.5 - Math.random()) * 20,
+      (0.5 - Math.random()) * 20,
+    ]);
+  }, [count]);
+
+  useFrame((state) => {
+    const t = state.clock.getElapsedTime();
+    
+    // Apply a subtle wobble and rotation
+    positions.forEach((pos, i) => {
+      const timeOffset = i * 0.1;
+      const x = pos[0] + Math.sin(t * 0.5 + timeOffset) * 0.1;
+      const y = pos[1] + Math.cos(t * 0.5 + timeOffset) * 0.1;
+      const z = pos[2];
+
+      dummy.position.set(x, y, z);
+      dummy.rotation.x = Math.sin(t * 0.3 + timeOffset);
+      dummy.rotation.y = Math.cos(t * 0.4 + timeOffset);
+      dummy.updateMatrix();
+      meshRef.current.setMatrixAt(i, dummy.matrix);
+    });
+    meshRef.current.instanceMatrix.needsUpdate = true;
   });
 
-  const gearGeometry = useMemo(() => {
-    const shape = new THREE.Shape();
-    const outerRadius = size;
-    const innerRadius = size * 0.8;
-    const holeRadius = size * 0.3;
-    const numTeeth = teeth;
-    for (let i = 0; i < numTeeth * 2; i++) {
-      const angle = (Math.PI * 2 * i) / (numTeeth * 2);
-      const radius = i % 2 === 0 ? outerRadius : innerRadius;
-      const x = Math.cos(angle) * radius;
-      const y = Math.sin(angle) * radius;
-      if (i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
-    }
-    const holePath = new THREE.Path();
-    holePath.absarc(0, 0, holeRadius, 0, Math.PI * 2, false);
-    shape.holes.push(holePath);
-    return new THREE.ExtrudeGeometry(shape, { depth: 0.5, bevelEnabled: true, bevelSegments: 2, steps: 2, bevelSize: 0.1, bevelThickness: 0.1 });
-  }, [size, teeth]);
-
   return (
-    <mesh ref={meshRef} position={position} {...props}>
-      <primitive object={gearGeometry} attach="geometry" />
-      <meshStandardMaterial color={color} roughness={0.3} metalness={0.8} emissive={color} emissiveIntensity={0.2} />
-    </mesh>
+    <instancedMesh ref={meshRef} args={[null, null, count]} position={[0, 0, 0]}>
+      <boxGeometry args={[0.08, 0.08, 0.08]} />
+      <meshStandardMaterial color="#3b82f6" emissive="#3b82f6" emissiveIntensity={0.8} metalness={0.9} roughness={0.1} />
+    </instancedMesh>
   );
 };
 
-// Procedural Rover Model (For the EFX Project)
-const RoverModel = () => {
-  const roverRef = useRef();
+
+// ** Custom Model Loader Component **
+const CustomRoverModel = () => {
+  // Path points to the file in the public folder
+  // NOTE: You must place your converted 3D model (e.g., rover_model.glb) in the 'public' folder.
+  const { scene } = useGLTF('/rover_model.glb'); 
   
-  useFrame((state) => {
-    if(roverRef.current) {
-        roverRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.5) * 0.2;
+  useFrame(() => {
+    // Optional: Add rotation to the loaded scene
+    if(scene) {
+        scene.rotation.y += 0.005; 
     }
   });
 
+  // Since GLB files contain their own materials/meshes, we only need to render the primitive scene.
   return (
-    <group ref={roverRef} scale={1.5}>
-      {/* Chassis */}
-      <mesh position={[0, 0.5, 0]} castShadow>
-        <boxGeometry args={[2, 0.5, 3]} />
-        <meshStandardMaterial color="#e11d48" roughness={0.4} metalness={0.6} />
-      </mesh>
-      
-      {/* Wheels */}
-      {[[-1.2, 0.5, 1], [1.2, 0.5, 1], [-1.2, 0.5, -1], [1.2, 0.5, -1]].map((pos, i) => (
-        <group position={pos} key={i} rotation={[0, 0, Math.PI / 2]}>
-          <mesh castShadow>
-            <cylinderGeometry args={[0.4, 0.4, 0.4, 32]} />
-            <meshStandardMaterial color="#111" roughness={0.8} />
-          </mesh>
-          <mesh rotation={[0, 0, 0]}>
-             <cylinderGeometry args={[0.2, 0.2, 0.42, 6]} />
-             <meshStandardMaterial color="#333" wireframe />
-          </mesh>
-        </group>
-      ))}
-
-      {/* Top Sensor Array */}
-      <group position={[0, 0.8, 0.5]}>
-        <mesh position={[0, 0.2, 0]}>
-           <cylinderGeometry args={[0.1, 0.1, 0.5]} />
-           <meshStandardMaterial color="#888" />
-        </mesh>
-        <mesh position={[0, 0.5, 0]}>
-           <sphereGeometry args={[0.2]} />
-           <meshStandardMaterial color="#3b82f6" emissive="#3b82f6" emissiveIntensity={2} />
-        </mesh>
-      </group>
-    </group>
+    <primitive object={scene} scale={1.5} />
   );
 };
 
@@ -115,20 +94,19 @@ const GenericCADModel = ({ color }) => (
   </group>
 );
 
-// Scene Manager
+// Scene Manager - Now uses the Instanced Mesh
 const BackgroundScene = ({ currentSection }) => {
   const groupRef = useRef();
   useFrame((state) => {
     if (!groupRef.current) return;
     const t = state.clock.getElapsedTime();
-    groupRef.current.rotation.y = t * 0.05;
-    groupRef.current.position.y = Math.sin(t * 0.2) * 0.5;
+    groupRef.current.rotation.y = t * 0.02; // Slower rotation
   });
 
   return (
     <group ref={groupRef}>
-      <Gear position={[-4, 2, -5]} size={2} teeth={12} speed={0.2} color="#333" />
-      <Gear position={[4, -2, -8]} size={3} teeth={16} speed={-0.1} color="#222" />
+      {/* Replaced Gear with optimized instances */}
+      <BackgroundInstances />
       <Float speed={2} rotationIntensity={0.5} floatIntensity={0.5}>
         <mesh position={[0, 0, -10]}>
           <sphereGeometry args={[0.5, 16, 16]} />
@@ -231,16 +209,19 @@ const ProjectModal = ({ project, onClose }) => {
           </div>
           <Canvas shadows>
             <Suspense fallback={null}>
+              {/* Camera settings */}
               <PerspectiveCamera makeDefault position={[4, 3, 5]} />
               <OrbitControls enablePan={false} autoRotate autoRotateSpeed={1} />
+              
+              {/* Lighting and Environment */}
               <ambientLight intensity={0.6} />
               <spotLight position={[10, 10, 10]} angle={0.5} penumbra={1} castShadow intensity={1} />
               <Environment preset="city" />
               
               <Float speed={2} rotationIntensity={0.2} floatIntensity={0.2}>
-                {/* Render specific model based on project ID or render generic */}
+                {/* RENDER THE CUSTOM LOADER HERE */}
                 {project.id === 'rover' ? (
-                  <RoverModel />
+                  <CustomRoverModel /> 
                 ) : (
                   <GenericCADModel color={project.colorStr} />
                 )}
@@ -249,7 +230,6 @@ const ProjectModal = ({ project, onClose }) => {
             </Suspense>
           </Canvas>
         </div>
-
         {/* Right: Details */}
         <div className="w-full md:w-1/3 h-1/2 md:h-full overflow-y-auto p-8 bg-zinc-900 border-l border-white/5">
           <div className={`inline-block p-3 rounded-lg bg-${project.color}-500/10 mb-6`}>
@@ -392,7 +372,7 @@ export default function App() {
             <color attach="background" args={['#09090b']} />
             <ambientLight intensity={0.5} />
             <pointLight position={[-10, -10, -10]} intensity={0.5} color="#3b82f6" />
-            <BackgroundScene currentSection={activeSection} />
+            <BackgroundScene activeSection={activeSection} />
             <Stars radius={100} depth={50} count={3000} factor={4} saturation={0} fade speed={1} />
             <Environment preset="city" />
           </Suspense>
@@ -423,7 +403,7 @@ export default function App() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                 </span>
-                Available for collaboration & internships
+                Available for Spring 2025
               </div>
               <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-white mb-6">
                 Designed for <br />
@@ -435,12 +415,22 @@ export default function App() {
                 Mechanical Engineering Portfolio specializing in Robotics, Additive Manufacturing, and Computational Simulation.
               </p>
               <div className="flex flex-wrap gap-4">
-                <button onClick={() => scrollToSection('profile')} className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition-all flex items-center gap-2">
+                <motion.button 
+                  onClick={() => scrollToSection('profile')} 
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20"
+                >
                    See Profile <User size={20} />
-                </button>
-                <button onClick={() => scrollToSection('projects')} className="px-8 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold transition-all border border-zinc-700">
+                </motion.button>
+                <motion.button 
+                  onClick={() => scrollToSection('projects')} 
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-8 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold transition-all border border-zinc-700"
+                >
                    View Projects
-                </button>
+                </motion.button>
               </div>
             </motion.div>
           </div>
@@ -459,8 +449,8 @@ export default function App() {
                     </div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-60"></div>
                     <div className="absolute bottom-0 left-0 p-6">
-                       <h3 className="text-2xl font-bold text-white">Muhammad Akshaf Mehboob</h3>
-                       <p className="text-blue-400 font-mono">Mechanical Engineering Student</p>
+                       <h3 className="text-2xl font-bold text-white">John Doe</h3>
+                       <p className="text-blue-400 font-mono">Mechanical Engineer</p>
                     </div>
                  </div>
                </div>
@@ -470,7 +460,7 @@ export default function App() {
                      About Me
                   </h2>
                   <p className="text-lg text-zinc-300 leading-relaxed mb-6">
-                     I am a second-year Mechanical Engineering student with a passion for bridging the gap between digital simulation and physical manufacturing. 
+                     I am a final-year Mechanical Engineering student with a passion for bridging the gap between digital simulation and physical manufacturing. 
                   </p>
                   <p className="text-zinc-400 leading-relaxed mb-8">
                      My experience spans from designing complex mechanisms in SolidWorks to verifying their integrity using ANSYS FEA. I have hands-on experience with rapid prototyping (3D printing, CNC) and have successfully led technical teams in university rover competitions. I am looking for a challenging role where I can apply my skills in product design and robotics.
@@ -483,10 +473,17 @@ export default function App() {
                         { label: "GPA", val: "3.8/4.0" },
                         { label: "Location", val: "Remote/Hybrid" }
                      ].map((stat, i) => (
-                        <div key={i} className="p-4 bg-white/5 rounded-lg border border-white/5">
+                        <motion.div 
+                            key={i} 
+                            initial={{ opacity: 0, x: -10 }}
+                            whileInView={{ opacity: 1, x: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ delay: i * 0.1 + 0.5, duration: 0.5 }}
+                            className="p-4 bg-white/5 rounded-lg border border-white/5 hover:border-blue-500/50 transition-colors"
+                        >
                            <div className="text-2xl font-bold text-white mb-1">{stat.val}</div>
                            <div className="text-xs text-zinc-500 uppercase tracking-wider">{stat.label}</div>
-                        </div>
+                        </motion.div>
                      ))}
                   </div>
                </div>
@@ -511,7 +508,8 @@ export default function App() {
                    viewport={{ once: true }}
                    transition={{ delay: index * 0.1 }}
                    onClick={() => setSelectedProject(project)}
-                   className="group cursor-pointer bg-zinc-900/50 border border-white/10 rounded-2xl overflow-hidden hover:border-blue-500/50 transition-all duration-300 hover:transform hover:scale-[1.01]"
+                   whileHover={{ y: -5, boxShadow: "0 10px 15px -3px rgba(59, 130, 246, 0.3)" }} // Interactive Lift
+                   className="group cursor-pointer bg-zinc-900/50 border border-white/10 rounded-2xl overflow-hidden hover:border-blue-500/50 transition-all duration-300"
                  >
                    {/* Header Simulation */}
                    <div className="bg-black/40 p-3 flex justify-between items-center border-b border-white/5">
@@ -558,10 +556,11 @@ export default function App() {
                         <span className="text-zinc-500 text-sm">{skill.tools}</span>
                       </div>
                       <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                        {/* Scroll-triggered animation for skill bars */}
                         <motion.div 
                           initial={{ width: 0 }}
                           whileInView={{ width: `${skill.level}%` }}
-                          viewport={{ once: true }}
+                          viewport={{ once: true, amount: 0.5 }} // Trigger when 50% visible
                           transition={{ duration: 1 }}
                           className="h-full bg-gradient-to-r from-blue-600 to-emerald-500"
                         />
@@ -571,16 +570,28 @@ export default function App() {
               </div>
               
               <div className="mt-16 grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div className="p-6 bg-zinc-900/80 border border-white/10 rounded-xl">
+                 <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.1 }}
+                    className="p-6 bg-zinc-900/80 border border-white/10 rounded-xl hover:border-blue-500/50 transition-colors"
+                 >
                     <h3 className="text-lg font-bold text-white mb-2">Education</h3>
                     <p className="text-blue-400">B.S. Mechanical Engineering</p>
-                    <p className="text-zinc-500 text-sm">National University of Sceinces & Technology, Islamabad, Pakistan • 2024-2028</p>
-                 </div>
-                 <div className="p-6 bg-zinc-900/80 border border-white/10 rounded-xl">
+                    <p className="text-zinc-500 text-sm">University of Tech • 2021-2025</p>
+                 </motion.div>
+                 <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.2 }}
+                    className="p-6 bg-zinc-900/80 border border-white/10 rounded-xl hover:border-blue-500/50 transition-colors"
+                 >
                     <h3 className="text-lg font-bold text-white mb-2">Certifications</h3>
                     <p className="text-zinc-300 text-sm">CSWP - Certified SolidWorks Professional</p>
                     <p className="text-zinc-300 text-sm">Certified ANSYS Associate</p>
-                 </div>
+                 </motion.div>
               </div>
            </div>
         </section>
@@ -593,9 +604,30 @@ export default function App() {
                  I am actively seeking opportunities to apply my engineering skills. 
               </p>
               <div className="flex justify-center gap-6 mb-12">
-                 <a href="#" className="p-4 bg-white/5 rounded-full hover:bg-blue-600 hover:text-white transition-colors"><Mail size={24} /></a>
-                 <a href="#" className="p-4 bg-white/5 rounded-full hover:bg-blue-600 hover:text-white transition-colors"><Linkedin size={24} /></a>
-                 <a href="#" className="p-4 bg-white/5 rounded-full hover:bg-blue-600 hover:text-white transition-colors"><Github size={24} /></a>
+                 <motion.a 
+                    href="#" 
+                    whileHover={{ scale: 1.1, color: '#3b82f6' }}
+                    whileTap={{ scale: 0.9 }}
+                    className="p-4 bg-white/5 rounded-full hover:bg-blue-600/50 text-white transition-colors"
+                 >
+                    <Mail size={24} />
+                 </motion.a>
+                 <motion.a 
+                    href="#" 
+                    whileHover={{ scale: 1.1, color: '#3b82f6' }}
+                    whileTap={{ scale: 0.9 }}
+                    className="p-4 bg-white/5 rounded-full hover:bg-blue-600/50 text-white transition-colors"
+                 >
+                    <Linkedin size={24} />
+                 </motion.a>
+                 <motion.a 
+                    href="#" 
+                    whileHover={{ scale: 1.1, color: '#3b82f6' }}
+                    whileTap={{ scale: 0.9 }}
+                    className="p-4 bg-white/5 rounded-full hover:bg-blue-600/50 text-white transition-colors"
+                 >
+                    <Github size={24} />
+                 </motion.a>
               </div>
               <footer className="text-zinc-600 text-sm">
                  © {new Date().getFullYear()} Mech.Folio
