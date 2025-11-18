@@ -9,7 +9,8 @@ import {
   useGLTF, 
   Text, 
   AccumulativeShadows, 
-  RandomizedLight 
+  RandomizedLight,
+  SpotLight
 } from '@react-three/drei';
 import * as THREE from 'three';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -38,7 +39,8 @@ import {
 const BACKGROUND_COLOR = '#0F0F0F'; // Dark Black
 const ACCENT_COLOR = '#FF6B00';    // Vibrant Engineering Orange
 const UI_GRAY = '#F0F0F0';         // Near White for Text
-const SHAPE_COUNT = 700;           // High number of instances, still fast
+const SHAPE_COUNT = 50;            // Significantly reduced count
+const MAX_SHAPE_SCALE = 0.5;       // Max scale for background objects
 
 // --- 3D COMPONENTS ---
 
@@ -47,22 +49,26 @@ const BackgroundInstances = ({ count = SHAPE_COUNT }) => {
   const meshRefs = useRef([]);
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
+  // Larger, more angular geometries
   const geometries = useMemo(() => [
-    new THREE.BoxGeometry(0.08, 0.08, 0.08),
-    new THREE.CylinderGeometry(0.04, 0.04, 0.2, 8),
-    new THREE.ConeGeometry(0.08, 0.2, 8),
-    new THREE.DodecahedronGeometry(0.08),
-    new THREE.TorusGeometry(0.06, 0.02, 8, 16),
+    new THREE.BoxGeometry(MAX_SHAPE_SCALE * 0.8, MAX_SHAPE_SCALE * 0.2, MAX_SHAPE_SCALE * 0.8), // Flat box/plate
+    new THREE.CylinderGeometry(MAX_SHAPE_SCALE * 0.1, MAX_SHAPE_SCALE * 0.1, MAX_SHAPE_SCALE * 1.5, 6), // Long rod
+    new THREE.BoxGeometry(MAX_SHAPE_SCALE * 0.3, MAX_SHAPE_SCALE * 0.3, MAX_SHAPE_SCALE * 0.3), // Cube
+    new THREE.IcosahedronGeometry(MAX_SHAPE_SCALE * 0.4), // Icosahedron (more complex node)
+    new THREE.TorusGeometry(MAX_SHAPE_SCALE * 0.4, MAX_SHAPE_SCALE * 0.1, 8, 16), // Torus (pipe/ring)
   ], []);
 
   const instanceData = useMemo(() => {
     return Array.from({ length: count }, () => ({
       position: [
-        (0.5 - Math.random()) * 25,
-        (0.5 - Math.random()) * 25,
-        (0.5 - Math.random()) * 25,
+        (0.5 - Math.random()) * 40, // Wider spread
+        (0.5 - Math.random()) * 40,
+        (0.5 - Math.random()) * 40,
       ],
+      rotation: new THREE.Euler(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI),
+      scale: Math.random() * 0.7 + 0.3, // Varying scale
       geometryIndex: Math.floor(Math.random() * geometries.length),
+      speed: Math.random() * 0.05 + 0.01 // Individual speed for sliding
     }));
   }, [count, geometries]);
 
@@ -76,14 +82,24 @@ const BackgroundInstances = ({ count = SHAPE_COUNT }) => {
       if (!meshRefs.current[geoIndex]) return;
 
       group.forEach((data, i) => {
-        const timeOffset = data.position[0] * 0.1;
-        const x = data.position[0] + Math.sin(t * 0.5 + timeOffset) * 0.1;
-        const y = data.position[1] + Math.cos(t * 0.5 + timeOffset) * 0.1;
-        const z = data.position[2];
+        // Sliding and rotating animation
+        const initialX = data.position[0];
+        const initialY = data.position[1];
+        const initialZ = data.position[2];
+
+        // Animate position to slide through the scene
+        const slideSpeed = data.speed;
+        let x = initialX + Math.sin(t * slideSpeed * 0.5) * 5;
+        let y = initialY + Math.cos(t * slideSpeed * 0.7) * 5;
+        let z = (initialZ + t * slideSpeed) % 40; // Objects move along Z, loop when they go too far
+
+        if (z > 20) z -= 40; // Loop around
 
         dummy.position.set(x, y, z);
-        dummy.rotation.x = Math.sin(t * 0.3 + timeOffset);
-        dummy.rotation.y = Math.cos(t * 0.4 + timeOffset);
+        dummy.rotation.x = data.rotation.x + t * slideSpeed * 0.3;
+        dummy.rotation.y = data.rotation.y + t * slideSpeed * 0.4;
+        dummy.rotation.z = data.rotation.z + t * slideSpeed * 0.2;
+        dummy.scale.setScalar(data.scale);
         dummy.updateMatrix();
         meshRefs.current[geoIndex].setMatrixAt(i, dummy.matrix);
       });
@@ -93,8 +109,7 @@ const BackgroundInstances = ({ count = SHAPE_COUNT }) => {
     });
   });
 
-  // Use a material that suggests heat or stress (Orange)
-  const material = <meshStandardMaterial color={ACCENT_COLOR} emissive={ACCENT_COLOR} emissiveIntensity={0.5} metalness={0.9} roughness={0.1} />;
+  const material = <meshStandardMaterial color={ACCENT_COLOR} emissive={ACCENT_COLOR} emissiveIntensity={0.3} metalness={0.8} roughness={0.2} />;
 
   return (
     <group position={[0, 0, 0]}>
@@ -114,7 +129,6 @@ const BackgroundInstances = ({ count = SHAPE_COUNT }) => {
 
 // Custom Model Loader Component (Using GLB)
 const CustomRoverModel = () => {
-  // Path points to the file in the public folder
   const { scene } = useGLTF('/rover_model.glb'); 
   const modelRef = useRef();
   
@@ -124,9 +138,8 @@ const CustomRoverModel = () => {
             if (child.isMesh) {
                 child.castShadow = true;
                 child.receiveShadow = true;
-                // Apply a simple white material to the imported model
                 child.material = new THREE.MeshStandardMaterial({ 
-                    color: UI_GRAY, 
+                    color: UI_GRAY, // White color for the model
                     metalness: 0.8, 
                     roughness: 0.2 
                 });
@@ -162,18 +175,41 @@ const BackgroundScene = () => {
   useFrame((state) => {
     if (!groupRef.current) return;
     const t = state.clock.getElapsedTime();
-    groupRef.current.rotation.y = t * 0.02; 
+    groupRef.current.rotation.y = t * 0.01; 
   });
 
   return (
     <group ref={groupRef}>
       <BackgroundInstances />
+      {/* Subtle floating orb for additional light/interest */}
       <Float speed={2} rotationIntensity={0.5} floatIntensity={0.5}>
         <mesh position={[0, 0, -10]} castShadow>
-          <sphereGeometry args={[0.5, 16, 16]} />
-          <meshStandardMaterial color={ACCENT_COLOR} emissive={ACCENT_COLOR} emissiveIntensity={5} />
+          <sphereGeometry args={[0.3, 16, 16]} />
+          <meshStandardMaterial color={ACCENT_COLOR} emissive={ACCENT_COLOR} emissiveIntensity={3} />
         </mesh>
       </Float>
+
+      {/* Directed spot lights to highlight sliding geometry */}
+      <SpotLight 
+        position={[10, 10, 10]} 
+        angle={0.3} 
+        penumbra={1} 
+        intensity={2} 
+        castShadow 
+        color={ACCENT_COLOR}
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+      />
+      <SpotLight 
+        position={[-10, -10, -10]} 
+        angle={0.3} 
+        penumbra={1} 
+        intensity={2} 
+        castShadow 
+        color={ACCENT_COLOR}
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+      />
     </group>
   );
 };
@@ -506,14 +542,14 @@ export default function App() {
             <PerspectiveCamera makeDefault position={[0, 0, 10]} fov={45} />
             <color attach="background" args={[BACKGROUND_COLOR]} /> 
             <ambientLight intensity={0.5} />
-            <pointLight position={[-10, -10, -10]} intensity={0.5} color={ACCENT_COLOR} />
+            {/* Removed the general point light, relying on SpotLights and ambient for background */}
             <BackgroundScene />
-            <Stars radius={100} depth={50} count={3000} factor={4} saturation={0} fade speed={1} />
+            {/* Removed stars for a cleaner, less cosmic look, more industrial */}
             <Environment preset="city" />
           </Suspense>
         </Canvas>
-        {/* Subtle wireframe grid overlay */}
-        <div className="absolute inset-0 pointer-events-none opacity-5 bg-repeat bg-[size:30px_30px] [background-image:linear-gradient(to_right,gray_1px,transparent_1px),linear-gradient(to_bottom,gray_1px,transparent_1px)]"></div>
+        {/* Subtle wireframe grid overlay - increased spacing for less clutter */}
+        <div className="absolute inset-0 pointer-events-none opacity-5 bg-repeat bg-[size:50px_50px] [background-image:linear-gradient(to_right,gray_1px,transparent_1px),linear-gradient(to_bottom,gray_1px,transparent_1px)]"></div>
         <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#0F0F0F]/90 via-[#0F0F0F]/30 to-[#0F0F0F]/90"></div>
       </div>
 
