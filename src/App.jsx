@@ -423,7 +423,7 @@ export default function App() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                 </span>
-                Available for Spring 2025
+                Available for collaboration & internships
               </div>
               <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-white mb-6">
                 Designed for <br />
@@ -459,8 +459,8 @@ export default function App() {
                     </div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-60"></div>
                     <div className="absolute bottom-0 left-0 p-6">
-                       <h3 className="text-2xl font-bold text-white">John Doe</h3>
-                       <p className="text-blue-400 font-mono">Mechanical Engineer</p>
+                       <h3 className="text-2xl font-bold text-white">Muhammad Akshaf Mehboob</h3>
+                       <p className="text-blue-400 font-mono">Mechanical Engineering Student</p>
                     </div>
                  </div>
                </div>
@@ -470,7 +470,7 @@ export default function App() {
                      About Me
                   </h2>
                   <p className="text-lg text-zinc-300 leading-relaxed mb-6">
-                     I am a final-year Mechanical Engineering student with a passion for bridging the gap between digital simulation and physical manufacturing. 
+                     I am a second-year Mechanical Engineering student with a passion for bridging the gap between digital simulation and physical manufacturing. 
                   </p>
                   <p className="text-zinc-400 leading-relaxed mb-8">
                      My experience spans from designing complex mechanisms in SolidWorks to verifying their integrity using ANSYS FEA. I have hands-on experience with rapid prototyping (3D printing, CNC) and have successfully led technical teams in university rover competitions. I am looking for a challenging role where I can apply my skills in product design and robotics.
@@ -574,7 +574,7 @@ export default function App() {
                  <div className="p-6 bg-zinc-900/80 border border-white/10 rounded-xl">
                     <h3 className="text-lg font-bold text-white mb-2">Education</h3>
                     <p className="text-blue-400">B.S. Mechanical Engineering</p>
-                    <p className="text-zinc-500 text-sm">University of Tech • 2021-2025</p>
+                    <p className="text-zinc-500 text-sm">National University of Sceinces & Technology, Islamabad, Pakistan • 2024-2028</p>
                  </div>
                  <div className="p-6 bg-zinc-900/80 border border-white/10 rounded-xl">
                     <h3 className="text-lg font-bold text-white mb-2">Certifications</h3>
