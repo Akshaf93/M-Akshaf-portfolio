@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { PerspectiveCamera, Environment, Float, Stars, ContactShadows, OrbitControls, useGLTF } from '@react-three/drei';
+import { PerspectiveCamera, Environment, Float, Stars, ContactShadows, OrbitControls, useGLTF, Text, AccumulativeShadows, RandomizedLight } from '@react-three/drei';
 import * as THREE from 'three';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -24,70 +24,115 @@ import {
 
 // --- 3D COMPONENTS ---
 
-// Optimized Instanced Background Objects (Instead of 2 heavy gears)
+// Optimized Instanced Background Objects - Now with varied shapes
 const BackgroundInstances = ({ count = 500 }) => {
-  const meshRef = useRef();
+  const meshRefs = useRef([]);
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
-  const positions = useMemo(() => {
-    return Array.from({ length: count }, () => [
-      (0.5 - Math.random()) * 20,
-      (0.5 - Math.random()) * 20,
-      (0.5 - Math.random()) * 20,
-    ]);
-  }, [count]);
+  // Define geometries representing abstract engineering components
+  const geometries = useMemo(() => [
+    new THREE.BoxGeometry(0.08, 0.08, 0.08),
+    new THREE.CylinderGeometry(0.04, 0.04, 0.2, 8),
+    new THREE.ConeGeometry(0.08, 0.2, 8),
+    new THREE.DodecahedronGeometry(0.08),
+    new THREE.TorusGeometry(0.06, 0.02, 8, 16),
+  ], []);
+
+  const instanceData = useMemo(() => {
+    return Array.from({ length: count }, () => ({
+      position: [
+        (0.5 - Math.random()) * 20,
+        (0.5 - Math.random()) * 20,
+        (0.5 - Math.random()) * 20,
+      ],
+      geometryIndex: Math.floor(Math.random() * geometries.length),
+    }));
+  }, [count, geometries]);
 
   useFrame((state) => {
     const t = state.clock.getElapsedTime();
     
-    // Apply a subtle wobble and rotation
-    positions.forEach((pos, i) => {
-      const timeOffset = i * 0.1;
-      const x = pos[0] + Math.sin(t * 0.5 + timeOffset) * 0.1;
-      const y = pos[1] + Math.cos(t * 0.5 + timeOffset) * 0.1;
-      const z = pos[2];
+    // Group instances by geometry type
+    const instanceGroups = Array(geometries.length).fill(null).map(() => []);
+    instanceData.forEach(data => instanceGroups[data.geometryIndex].push(data));
 
-      dummy.position.set(x, y, z);
-      dummy.rotation.x = Math.sin(t * 0.3 + timeOffset);
-      dummy.rotation.y = Math.cos(t * 0.4 + timeOffset);
-      dummy.updateMatrix();
-      meshRef.current.setMatrixAt(i, dummy.matrix);
+    // Update matrices for each group
+    instanceGroups.forEach((group, geoIndex) => {
+      if (!meshRefs.current[geoIndex]) return;
+
+      group.forEach((data, i) => {
+        const timeOffset = data.position[0] * 0.1;
+        const x = data.position[0] + Math.sin(t * 0.5 + timeOffset) * 0.1;
+        const y = data.position[1] + Math.cos(t * 0.5 + timeOffset) * 0.1;
+        const z = data.position[2];
+
+        dummy.position.set(x, y, z);
+        dummy.rotation.x = Math.sin(t * 0.3 + timeOffset);
+        dummy.rotation.y = Math.cos(t * 0.4 + timeOffset);
+        dummy.updateMatrix();
+        meshRefs.current[geoIndex].setMatrixAt(i, dummy.matrix);
+      });
+      meshRefs.current[geoIndex].instanceMatrix.needsUpdate = true;
     });
-    meshRef.current.instanceMatrix.needsUpdate = true;
   });
 
+  const material = <meshStandardMaterial color="#3b82f6" emissive="#3b82f6" emissiveIntensity={0.8} metalness={0.9} roughness={0.1} />;
+
+  // Render an InstancedMesh for each geometry type
   return (
-    <instancedMesh ref={meshRef} args={[null, null, count]} position={[0, 0, 0]}>
-      <boxGeometry args={[0.08, 0.08, 0.08]} />
-      <meshStandardMaterial color="#3b82f6" emissive="#3b82f6" emissiveIntensity={0.8} metalness={0.9} roughness={0.1} />
-    </instancedMesh>
+    <group position={[0, 0, 0]}>
+      {geometries.map((geo, index) => (
+        <instancedMesh 
+          key={index}
+          ref={el => meshRefs.current[index] = el}
+          args={[geo, null, instanceData.filter(d => d.geometryIndex === index).length]} 
+        >
+          {material}
+        </instancedMesh>
+      ))}
+    </group>
   );
 };
 
 
-// ** Custom Model Loader Component **
+// Custom Model Loader Component (Using GLB)
 const CustomRoverModel = () => {
-  // Path points to the file in the public folder
-  // NOTE: You must place your converted 3D model (e.g., rover_model.glb) in the 'public' folder.
+  // Use useGLTF to load the model placed in the public folder
   const { scene } = useGLTF('/rover_model.glb'); 
+  const modelRef = useRef();
+  
+  // Apply shadows and scale
+  useEffect(() => {
+    if (scene) {
+        console.log("rover_model.glb loaded successfully.");
+        // Traverse and enable shadows for all meshes in the scene
+        scene.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+    }
+  }, [scene]);
   
   useFrame(() => {
-    // Optional: Add rotation to the loaded scene
-    if(scene) {
-        scene.rotation.y += 0.005; 
+    // Optional: Add subtle rotation to the loaded scene
+    if(modelRef.current) {
+        modelRef.current.rotation.y += 0.005; 
     }
   });
 
-  // Since GLB files contain their own materials/meshes, we only need to render the primitive scene.
+  // Primitive loads the entire scene graph from the GLB file
   return (
-    <primitive object={scene} scale={1.5} />
+    // Lower position to sit on the shadow plane
+    <primitive object={scene} scale={1.5} ref={modelRef} position={[0, -0.7, 0]} /> 
   );
 };
 
 // Generic Project Model (Placeholder for others)
 const GenericCADModel = ({ color }) => (
   <group>
-    <mesh castShadow>
+    <mesh castShadow receiveShadow>
       <torusKnotGeometry args={[1, 0.3, 100, 16]} />
       <meshStandardMaterial color={color} roughness={0.2} metalness={0.9} />
     </mesh>
@@ -105,10 +150,10 @@ const BackgroundScene = ({ currentSection }) => {
 
   return (
     <group ref={groupRef}>
-      {/* Replaced Gear with optimized instances */}
+      {/* Optimized instances of various shapes */}
       <BackgroundInstances />
       <Float speed={2} rotationIntensity={0.5} floatIntensity={0.5}>
-        <mesh position={[0, 0, -10]}>
+        <mesh position={[0, 0, -10]} castShadow>
           <sphereGeometry args={[0.5, 16, 16]} />
           <meshStandardMaterial color="#3b82f6" emissive="#3b82f6" emissiveIntensity={5} />
         </mesh>
@@ -116,6 +161,25 @@ const BackgroundScene = ({ currentSection }) => {
     </group>
   );
 };
+
+// Simple text loader for 3D environment
+const TextLoader = () => (
+  <mesh>
+    {/* Minimal geometry to act as the base for the text */}
+    <boxGeometry args={[0, 0, 0]} />
+    <meshBasicMaterial color="white" transparent opacity={0} />
+    <Text 
+        position={[0, 0, 0]} 
+        color="white" 
+        fontSize={0.3} 
+        anchorX="center" 
+        anchorY="middle"
+    >
+      Loading 3D Model...
+    </Text>
+  </mesh>
+);
+
 
 // --- UI COMPONENTS ---
 
@@ -203,30 +267,57 @@ const ProjectModal = ({ project, onClose }) => {
         </button>
 
         {/* Left: Interactive 3D View */}
+        {/* Enable shadows in Canvas */}
         <div className="w-full md:w-2/3 h-1/2 md:h-full bg-black relative">
           <div className="absolute top-4 left-4 z-10 px-3 py-1 bg-black/60 text-blue-400 text-xs font-mono border border-blue-500/30 rounded">
             INTERACTIVE 3D PREVIEW - DRAG TO ROTATE
           </div>
           <Canvas shadows>
-            <Suspense fallback={null}>
+            <Suspense fallback={
+              <TextLoader /> 
+            }>
               {/* Camera settings */}
               <PerspectiveCamera makeDefault position={[4, 3, 5]} />
               <OrbitControls enablePan={false} autoRotate autoRotateSpeed={1} />
               
               {/* Lighting and Environment */}
               <ambientLight intensity={0.6} />
-              <spotLight position={[10, 10, 10]} angle={0.5} penumbra={1} castShadow intensity={1} />
+              {/* Directional light to cast clear shadows */}
+              <directionalLight 
+                position={[10, 10, 10]} 
+                intensity={1} 
+                castShadow 
+                shadow-mapSize-width={1024}
+                shadow-mapSize-height={1024}
+                shadow-camera-far={50}
+                shadow-camera-left={-10}
+                shadow-camera-right={10}
+                shadow-camera-top={10}
+                shadow-camera-bottom={-10}
+              />
               <Environment preset="city" />
               
               <Float speed={2} rotationIntensity={0.2} floatIntensity={0.2}>
-                {/* RENDER THE CUSTOM LOADER HERE */}
                 {project.id === 'rover' ? (
                   <CustomRoverModel /> 
                 ) : (
                   <GenericCADModel color={project.colorStr} />
                 )}
               </Float>
-              <ContactShadows position={[0, -1.5, 0]} opacity={0.5} scale={10} blur={1.5} far={4} />
+              
+              {/* Accumulative Shadows for soft ambient occlusion/ground shadow */}
+              <AccumulativeShadows 
+                  frames={100} 
+                  alphaTest={0.85} 
+                  scale={10} 
+                  rotation={[Math.PI / 2, 0, 0]} 
+                  position={[0, -0.7, 0]} // Positioned below the model
+                  color="#3b82f6" // Shadow color matching the theme
+                  opacity={0.5}
+              >
+                  <RandomizedLight amount={8} radius={5} ambient={0.5} intensity={1} position={[5, 5, -10]} bias={0.001} />
+              </AccumulativeShadows>
+
             </Suspense>
           </Canvas>
         </div>
@@ -363,13 +454,15 @@ export default function App() {
   ];
 
   return (
-    <div className="bg-zinc-950 text-zinc-100 min-h-screen font-sans selection:bg-blue-500/30">
+    // Updated background to zinc-900 (slightly lighter)
+    <div className="bg-zinc-900 text-zinc-100 min-h-screen font-sans selection:bg-blue-500/30">
       {/* Background 3D Scene */}
       <div className="fixed inset-0 z-0 pointer-events-auto">
         <Canvas shadows dpr={[1, 2]}>
           <Suspense fallback={null}>
             <PerspectiveCamera makeDefault position={[0, 0, 10]} fov={45} />
-            <color attach="background" args={['#09090b']} />
+            {/* Updated Canvas background color */}
+            <color attach="background" args={['#18181b']} /> 
             <ambientLight intensity={0.5} />
             <pointLight position={[-10, -10, -10]} intensity={0.5} color="#3b82f6" />
             <BackgroundScene activeSection={activeSection} />
@@ -378,7 +471,7 @@ export default function App() {
           </Suspense>
         </Canvas>
         <div className="absolute inset-0 pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
-        <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-zinc-950/90 via-zinc-950/40 to-zinc-950/90"></div>
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-zinc-900/90 via-zinc-900/40 to-zinc-900/90"></div>
       </div>
 
       <Navbar 
