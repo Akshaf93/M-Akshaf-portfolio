@@ -5,7 +5,6 @@ import {
   Environment, 
   Float, 
   Stars, 
-  ContactShadows, 
   OrbitControls, 
   useGLTF, 
   Text, 
@@ -23,21 +22,22 @@ import {
   Github, 
   Linkedin, 
   Mail, 
-  User,
   Download,
-  Maximize2,
   GitBranch,
   Target,
   FlaskConical,
   Zap,
   Menu,
-  X
+  X,
+  Gauge, // New Icon for Skills
+  Code
 } from 'lucide-react';
 
 // --- CONFIG & UTILS ---
 
-const BACKGROUND_COLOR = '#0D1117'; // Deep Navy/Black
-const ACCENT_COLOR = '#00FFFF';    // Bright Aqua
+const BACKGROUND_COLOR = '#0F0F0F'; // Dark Black
+const ACCENT_COLOR = '#FF6B00';    // Vibrant Engineering Orange
+const UI_GRAY = '#F0F0F0';         // Near White for Text
 const SHAPE_COUNT = 700;           // High number of instances, still fast
 
 // --- 3D COMPONENTS ---
@@ -93,6 +93,7 @@ const BackgroundInstances = ({ count = SHAPE_COUNT }) => {
     });
   });
 
+  // Use a material that suggests heat or stress (Orange)
   const material = <meshStandardMaterial color={ACCENT_COLOR} emissive={ACCENT_COLOR} emissiveIntensity={0.5} metalness={0.9} roughness={0.1} />;
 
   return (
@@ -123,6 +124,12 @@ const CustomRoverModel = () => {
             if (child.isMesh) {
                 child.castShadow = true;
                 child.receiveShadow = true;
+                // Apply a simple white material to the imported model
+                child.material = new THREE.MeshStandardMaterial({ 
+                    color: UI_GRAY, 
+                    metalness: 0.8, 
+                    roughness: 0.2 
+                });
             }
         });
     }
@@ -135,7 +142,6 @@ const CustomRoverModel = () => {
   });
 
   return (
-    // Lower position to sit on the shadow plane
     <primitive object={scene} scale={1.5} ref={modelRef} position={[0, -0.7, 0]} /> 
   );
 };
@@ -179,16 +185,63 @@ const TextLoader = () => (
     <meshBasicMaterial color="white" transparent opacity={0} />
     <Text 
         position={[0, 0, 0]} 
-        color="white" 
+        color={UI_GRAY}
         fontSize={0.3} 
         anchorX="center" 
         anchorY="middle"
     >
-      Loading 3D Model...
+      LOADING MODEL...
     </Text>
   </mesh>
 );
 
+// New component to encapsulate the modal's 3D logic
+const ProjectCanvas = ({ project }) => {
+  return (
+    <Canvas shadows>
+        {/* Use Suspense immediately inside the Canvas to catch asset loading errors */}
+        <Suspense fallback={<TextLoader />}>
+            <PerspectiveCamera makeDefault position={[4, 3, 5]} />
+            <OrbitControls enablePan={false} autoRotate autoRotateSpeed={0.5} />
+            
+            <ambientLight intensity={0.8} />
+            <directionalLight 
+                position={[10, 10, 10]} 
+                intensity={1} 
+                castShadow 
+                shadow-mapSize-width={1024}
+                shadow-mapSize-height={1024}
+                shadow-camera-far={50}
+                shadow-camera-left={-10}
+                shadow-camera-right={10}
+                shadow-camera-top={10}
+                shadow-camera-bottom={-10}
+            />
+            <Environment preset="city" />
+            
+            <Float speed={2} rotationIntensity={0.2} floatIntensity={0.2}>
+                {project.id === 'rover' ? (
+                <CustomRoverModel /> 
+                ) : (
+                <GenericCADModel color={project.colorStr} />
+                )}
+            </Float>
+            
+            <AccumulativeShadows 
+                frames={100} 
+                alphaTest={0.85} 
+                scale={10} 
+                rotation={[Math.PI / 2, 0, 0]} 
+                position={[0, -0.7, 0]} 
+                color={ACCENT_COLOR} 
+                opacity={0.5}
+            >
+                <RandomizedLight amount={8} radius={5} ambient={0.5} intensity={1} position={[5, 5, -10]} bias={0.001} />
+            </AccumulativeShadows>
+        </Suspense>
+    </Canvas>
+  );
+};
 
 // --- UI COMPONENTS ---
 
@@ -202,12 +255,12 @@ const Navbar = ({ activeSection, scrollToSection }) => {
   ];
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-transparent backdrop-blur-sm border-b border-white/5">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0F0F0F]/90 backdrop-blur-sm border-b border-white/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-2 font-bold text-xl tracking-tighter text-white">
-            <Cog className={`w-6 h-6 text-cyan-400 ${activeSection === 'hero' ? 'animate-spin-slow' : ''}`} />
-            <span>MECH<span className="text-cyan-400">.FOLIO</span></span>
+          <div className="flex items-center gap-2 font-extrabold text-xl tracking-tighter text-white">
+            <Wrench className={`w-6 h-6 text-orange-500`} />
+            <span>MECH<span className="text-orange-500">.ENG</span></span>
           </div>
           <div className="hidden md:block">
             <div className="ml-10 flex items-baseline space-x-4">
@@ -216,23 +269,22 @@ const Navbar = ({ activeSection, scrollToSection }) => {
                   key={item.id}
                   onClick={() => scrollToSection(item.id)}
                   className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-300 relative ${
-                    activeSection === item.id ? 'text-cyan-400' : 'text-zinc-400 hover:text-white'
+                    activeSection === item.id ? 'text-orange-500' : 'text-zinc-300 hover:text-white'
                   }`}
                 >
                   {item.label}
                   {activeSection === item.id && (
                      <motion.span 
                         layoutId="underline" 
-                        className="absolute bottom-0 left-0 right-0 h-[2px] bg-cyan-400 rounded-t-full" 
+                        className="absolute bottom-0 left-0 right-0 h-[3px] bg-orange-500 rounded-t-sm" 
                      />
                   )}
                 </button>
               ))}
             </div>
           </div>
-          {/* Removed mobile menu for simplicity in the redesign, but button remains */}
           <div className="md:hidden">
-            <button className="text-zinc-400 hover:text-white p-2">
+            <button className="text-zinc-300 hover:text-white p-2">
               <Menu size={24} />
             </button>
           </div>
@@ -245,6 +297,9 @@ const Navbar = ({ activeSection, scrollToSection }) => {
 const ProjectModal = ({ project, onClose }) => {
   if (!project) return null;
 
+  // Map old blue/cyan to new accent color for consistency
+  const projectColor = project.id === 'rover' ? ACCENT_COLOR : project.colorStr;
+
   return (
     <motion.div 
       initial={{ opacity: 0 }} 
@@ -252,67 +307,25 @@ const ProjectModal = ({ project, onClose }) => {
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/95 backdrop-blur-sm"
     >
-      <div className="relative w-full max-w-7xl h-[85vh] bg-[#121822] border border-cyan-400/20 rounded-2xl overflow-hidden flex flex-col md:flex-row shadow-2xl shadow-cyan-900/40">
+      <div className="relative w-full max-w-7xl h-[85vh] bg-[#1a1a1a] border border-white/10 rounded-2xl overflow-hidden flex flex-col md:flex-row shadow-2xl shadow-black/80">
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 z-10 p-2 bg-black/50 text-white rounded-full hover:bg-red-500/80 transition-colors"
+          className="absolute top-4 right-4 z-10 p-2 bg-black/50 text-white rounded-full hover:bg-orange-500/80 transition-colors"
         >
           <X size={24} />
         </button>
 
         {/* Left: Interactive 3D View */}
         <div className="w-full md:w-2/3 h-1/2 md:h-full bg-black relative">
-          <div className="absolute top-4 left-4 z-10 px-3 py-1 bg-black/60 text-cyan-400 text-xs font-mono border border-cyan-500/30 rounded">
-            INTERACTIVE 3D PREVIEW
+          <div className="absolute top-4 left-4 z-10 px-3 py-1 bg-black/60 text-orange-500 text-xs font-mono border border-orange-500/50 rounded">
+            INTERACTIVE SIMULATION
           </div>
-          <Canvas shadows>
-            <Suspense fallback={
-              <TextLoader /> 
-            }>
-              <PerspectiveCamera makeDefault position={[4, 3, 5]} />
-              <OrbitControls enablePan={false} autoRotate autoRotateSpeed={1} />
-              
-              <ambientLight intensity={0.6} />
-              <directionalLight 
-                position={[10, 10, 10]} 
-                intensity={1} 
-                castShadow 
-                shadow-mapSize-width={1024}
-                shadow-mapSize-height={1024}
-                shadow-camera-far={50}
-                shadow-camera-left={-10}
-                shadow-camera-right={10}
-                shadow-camera-top={10}
-                shadow-camera-bottom={-10}
-              />
-              <Environment preset="city" />
-              
-              <Float speed={2} rotationIntensity={0.2} floatIntensity={0.2}>
-                {project.id === 'rover' ? (
-                  <CustomRoverModel /> 
-                ) : (
-                  <GenericCADModel color={project.colorStr} />
-                )}
-              </Float>
-              
-              <AccumulativeShadows 
-                  frames={100} 
-                  alphaTest={0.85} 
-                  scale={10} 
-                  rotation={[Math.PI / 2, 0, 0]} 
-                  position={[0, -0.7, 0]} 
-                  color={ACCENT_COLOR} 
-                  opacity={0.5}
-              >
-                  <RandomizedLight amount={8} radius={5} ambient={0.5} intensity={1} position={[5, 5, -10]} bias={0.001} />
-              </AccumulativeShadows>
-
-            </Suspense>
-          </Canvas>
+          <ProjectCanvas project={project} />
         </div>
+        
         {/* Right: Details */}
-        <div className="w-full md:w-1/3 h-1/2 md:h-full overflow-y-auto p-8 bg-[#1f2937]/50 border-l border-white/5">
-          <div className={`p-4 rounded-xl mb-6 bg-cyan-400/10 text-cyan-400 inline-block`}>
+        <div className="w-full md:w-1/3 h-1/2 md:h-full overflow-y-auto p-8 bg-[#1f2937]/30 border-l border-white/5">
+          <div className={`p-4 rounded-xl mb-6`} style={{ backgroundColor: `${projectColor}1A`, color: projectColor }}>
             {project.icon}
           </div>
           
@@ -320,14 +333,14 @@ const ProjectModal = ({ project, onClose }) => {
           <p className="text-zinc-500 text-sm mb-6 font-mono">{project.date || "Fall 2024"}</p>
           
           <div className="prose prose-invert prose-sm mb-8 text-zinc-300">
-            <p className="border-l-4 border-cyan-600 pl-4">{project.fullDescription || project.description}</p>
+            <p className="border-l-4 pl-4" style={{ borderColor: projectColor }}>{project.fullDescription || project.description}</p>
           </div>
 
           <div className="mb-8">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3 border-b border-cyan-400/20 pb-1">Tech Stack</h3>
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3 border-b border-white/10 pb-1">Tech Stack</h3>
             <div className="flex flex-wrap gap-2">
               {project.tags.map(tag => (
-                <span key={tag} className="px-2 py-1 text-xs rounded-full bg-cyan-400/10 text-cyan-300 border border-cyan-500/20">
+                <span key={tag} className="px-2 py-1 text-xs rounded-full border text-white font-mono" style={{ borderColor: `${projectColor}80`, backgroundColor: `${projectColor}1A` }}>
                   {tag}
                 </span>
               ))}
@@ -335,11 +348,11 @@ const ProjectModal = ({ project, onClose }) => {
           </div>
 
           <div className="mb-8">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3 border-b border-cyan-400/20 pb-1">Gallery</h3>
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3 border-b border-white/10 pb-1">Gallery</h3>
             <div className="grid grid-cols-2 gap-2">
                {[1,2,3,4].map(i => (
-                 <div key={i} className="aspect-square bg-zinc-700/50 rounded hover:bg-zinc-600 transition-colors flex items-center justify-center text-zinc-500 text-xs border border-dashed border-cyan-400/10">
-                   Image Placeholder {i}
+                 <div key={i} className="aspect-square bg-white/5 rounded hover:bg-white/10 transition-colors flex items-center justify-center text-zinc-500 text-xs border border-dashed border-white/20">
+                   Figure {i}
                  </div>
                ))}
             </div>
@@ -347,16 +360,16 @@ const ProjectModal = ({ project, onClose }) => {
 
           <div className="flex gap-4 pt-4 border-t border-white/5">
              <motion.button 
-                whileHover={{ scale: 1.02 }}
+                whileHover={{ scale: 1.02, backgroundColor: '#c25500' }}
                 whileTap={{ scale: 0.98 }}
-                className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-cyan-700/30"
+                className="flex-1 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-700/30"
              >
                 <Download size={16} /> Technical Report
              </motion.button>
              <motion.button 
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="flex-1 py-3 bg-transparent hover:bg-zinc-700 text-cyan-400 rounded-lg font-bold text-sm transition-all border border-cyan-400/50 flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-transparent hover:bg-white/5 text-orange-500 rounded-lg font-bold text-sm transition-all border border-orange-500/50 flex items-center justify-center gap-2"
              >
                 <GitBranch size={16} /> GitHub Source
              </motion.button>
@@ -367,29 +380,30 @@ const ProjectModal = ({ project, onClose }) => {
   );
 };
 
-// Skill Bar component using Framer Motion for animation
-const SkillBar = ({ name, level, tools }) => {
+// Skill Card component using Framer Motion for animation
+const SkillCard = ({ name, level, tools, icon: Icon }) => {
+    // Determine color based on skill level, mimicking a heat map
+    const skillColor = level > 90 ? 'text-orange-500' : level > 80 ? 'text-yellow-500' : 'text-zinc-400';
+
     return (
         <motion.div 
-            className="p-4 bg-zinc-800/60 rounded-xl border border-white/5 hover:border-cyan-500/50 transition-all cursor-default"
-            initial={{ opacity: 0, y: 20 }}
+            className="p-6 bg-[#1a1a1a] rounded-xl border border-white/5 hover:border-orange-500 transition-all cursor-default relative overflow-hidden"
+            initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.3 }}
             transition={{ duration: 0.5 }}
         >
-            <div className="flex justify-between items-center mb-2">
-                <span className="font-bold text-white text-lg">{name}</span>
-                <span className="text-cyan-400 font-mono text-sm">{level}%</span>
+            <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-orange-500/50 to-transparent`} style={{ width: `${level}%` }}></div>
+            
+            <div className="flex items-center gap-4 mb-4">
+                <Icon size={28} className={skillColor} />
+                <span className="font-bold text-white text-xl">{name}</span>
             </div>
-            <p className="text-zinc-500 text-xs mb-3">{tools}</p>
-            <div className="h-2 bg-zinc-700 rounded-full overflow-hidden">
-                <motion.div 
-                    initial={{ width: 0 }}
-                    whileInView={{ width: `${level}%` }}
-                    viewport={{ once: true, amount: 0.5 }}
-                    transition={{ duration: 1, ease: "easeOut" }}
-                    className="h-full bg-gradient-to-r from-cyan-500 to-teal-400"
-                />
+            
+            <p className="text-zinc-400 text-xs mb-4">{tools}</p>
+            
+            <div className="flex justify-end">
+                <span className={`text-3xl font-extrabold font-mono ${skillColor}`}>{level}%</span>
             </div>
         </motion.div>
     );
@@ -433,9 +447,9 @@ export default function App() {
       description: "A functional modular rover chassis designed for the EFX planetary exploration challenge, emphasizing 3D printability and custom suspension.",
       fullDescription: "This project involved the complete design lifecycle of a planetary rover prototype. I used Fusion 360 for the chassis design, focusing on printability and structural integrity using PLA+ and PETG filaments. The rover utilizes a rocker-bogie suspension system adapted for 3D printing to navigate rough terrain. The wheels are a compliant mechanism design to absorb shock without pneumatic tires.",
       tags: ["Fusion 360", "3D Printing", "Arduino", "Rocker-Bogie"],
-      icon: <Cpu size={24} />,
+      icon: <Target size={24} />,
       color: "red",
-      colorStr: "#ef4444"
+      colorStr: "#FF6B00"
     },
     {
       id: "fea",
@@ -445,7 +459,7 @@ export default function App() {
       tags: ["SolidWorks", "ANSYS", "Matlab", "Optimization"],
       icon: <Cog size={24} />,
       color: "orange",
-      colorStr: "#f97316"
+      colorStr: "#FF9900" // A secondary orange tone
     },
     {
       id: "cfd",
@@ -455,7 +469,7 @@ export default function App() {
       tags: ["OpenFOAM", "CFD", "Aerodynamics", "Python"],
       icon: <Wind size={24} />,
       color: "blue",
-      colorStr: "#3b82f6"
+      colorStr: "#FF6B00" // Back to main accent
     },
     {
       id: "suspension",
@@ -465,26 +479,26 @@ export default function App() {
       tags: ["ADAMS", "Simulink", "Vehicle Dynamics", "MATLAB"],
       icon: <Layers size={24} />,
       color: "purple",
-      colorStr: "#a855f7"
+      colorStr: "#FF9900" // Secondary orange tone
     }
   ];
 
   const skills = [
-    { name: "CAD Design & Modeling", level: 95, tools: "SolidWorks, Fusion 360, CATIA" },
-    { name: "FEA & CFD Simulation", level: 85, tools: "ANSYS, COMSOL, OpenFOAM" },
-    { name: "Robotics & Controls", level: 90, tools: "ROS, Arduino, PLC, PID" },
-    { name: "Programming & Analysis", level: 80, tools: "Python, MATLAB, C++, Git" }
+    { name: "CAD Design", level: 95, tools: "SolidWorks, Fusion 360, CATIA", icon: Wrench },
+    { name: "FEA & CFD", level: 88, tools: "ANSYS, COMSOL, OpenFOAM", icon: FlaskConical },
+    { name: "Dynamics & Control", level: 90, tools: "ROS, Arduino, PLC, PID", icon: Zap },
+    { name: "Scripting & Data", level: 82, tools: "Python, MATLAB, C++, Git", icon: Code }
   ];
 
   const statItems = [
-    { label: "Design Projects", val: "15+", icon: <Target size={24} className="text-cyan-400" /> },
-    { label: "Simulation Hours", val: "500+", icon: <FlaskConical size={24} className="text-cyan-400" /> },
-    { label: "Robotics Lead", val: "2 Years", icon: <Zap size={24} className="text-cyan-400" /> },
-    { label: "Code Repositories", val: "20+", icon: <GitBranch size={24} className="text-cyan-400" /> }
+    { label: "Design Projects", val: "15+", icon: <Target size={24} className="text-orange-500" /> },
+    { label: "Simulation Hours", val: "500+", icon: <FlaskConical size={24} className="text-orange-500" /> },
+    { label: "Robotics Lead", val: "2 Years", icon: <Zap size={24} className="text-orange-500" /> },
+    { label: "Code Repositories", val: "20+", icon: <GitBranch size={24} className="text-orange-500" /> }
   ];
 
   return (
-    <div className="bg-[#0D1117] text-zinc-100 min-h-screen font-sans selection:bg-cyan-500/30">
+    <div className="bg-[#0F0F0F] text-zinc-100 min-h-screen font-sans selection:bg-orange-500/30">
       {/* Background 3D Scene */}
       <div className="fixed inset-0 z-0 pointer-events-auto">
         <Canvas shadows dpr={[1, 2]}>
@@ -498,8 +512,9 @@ export default function App() {
             <Environment preset="city" />
           </Suspense>
         </Canvas>
-        <div className="absolute inset-0 pointer-events-none opacity-10 bg-repeat bg-[size:20px_20px] [background-image:radial-gradient(ellipse_at_top,_#00FFFF40_1px,_transparent_1px)]"></div>
-        <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#0D1117]/90 via-[#0D1117]/30 to-[#0D1117]/90"></div>
+        {/* Subtle wireframe grid overlay */}
+        <div className="absolute inset-0 pointer-events-none opacity-5 bg-repeat bg-[size:30px_30px] [background-image:linear-gradient(to_right,gray_1px,transparent_1px),linear-gradient(to_bottom,gray_1px,transparent_1px)]"></div>
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#0F0F0F]/90 via-[#0F0F0F]/30 to-[#0F0F0F]/90"></div>
       </div>
 
       <Navbar 
@@ -513,40 +528,41 @@ export default function App() {
         <section id="hero" ref={el => sectionsRef.current.hero = el} className="min-h-screen flex flex-col justify-center px-4 sm:px-6 lg:px-8">
           <div className="max-w-6xl mx-auto w-full">
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8 }}
             >
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-sm font-mono mb-8 shadow-md shadow-cyan-900/40">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 text-sm font-mono mb-8">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
                 </span>
-                DESIGN_V5.0: Spring 2025 Availability
+                DESIGN LEAD: Fall 2025 Graduation
               </div>
-              <h1 className="text-6xl md:text-8xl font-extrabold tracking-tight text-white mb-6">
-                ENGINEER. <br />
-                BUILD. <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-teal-400">SIMULATE.</span>
+              <h1 className="text-6xl md:text-9xl font-extrabold tracking-tight text-white mb-6 leading-none">
+                <span className="text-zinc-400 font-light">COMPUTATIONAL</span> <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-orange-400">MECHANICAL</span> <br/>
+                ENGINEER.
               </h1>
-              <p className="text-2xl text-zinc-400 max-w-3xl mb-10 leading-relaxed font-light">
-                Mechanical Engineering student specializing in **Computational Design**, Robotics, and high-precision Additive Manufacturing.
+              <p className="text-xl text-zinc-300 max-w-3xl mb-10 leading-relaxed font-light mt-6 border-l-4 border-orange-500 pl-4">
+                Specializing in advanced **Finite Element Analysis (FEA)**, Robotics, and robust **CAD-to-Manufacture** pipelines.
               </p>
               <div className="flex flex-wrap gap-4">
                 <motion.button 
                   onClick={() => scrollToSection('projects')} 
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-8 py-4 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-bold text-lg transition-all flex items-center gap-3 shadow-xl shadow-cyan-600/30 border border-cyan-500/50"
+                  className="px-8 py-4 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-bold text-lg transition-all flex items-center gap-3 shadow-xl shadow-orange-600/30 border border-orange-500/50"
                 >
-                   View Projects <Layers size={20} />
+                   View Analysis <Gauge size={20} />
                 </motion.button>
                 <motion.button 
                   onClick={() => scrollToSection('contact')} 
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-8 py-4 bg-transparent hover:bg-zinc-800 text-cyan-400 rounded-lg font-bold text-lg transition-all border border-zinc-700 flex items-center gap-3"
+                  className="px-8 py-4 bg-transparent hover:bg-white/10 text-orange-500 rounded-lg font-bold text-lg transition-all border border-zinc-700 flex items-center gap-3"
                 >
-                   Get In Touch <Mail size={20} />
+                   Contact Me <Mail size={20} />
                 </motion.button>
               </div>
             </motion.div>
@@ -554,31 +570,29 @@ export default function App() {
         </section>
 
         {/* PROFILE / SUMMARY SECTION */}
-        <section id="profile" ref={el => sectionsRef.current.profile = el} className="py-24 px-4 sm:px-6 lg:px-8 border-y border-white/5 bg-[#0D1117]">
+        <section id="profile" ref={el => sectionsRef.current.profile = el} className="py-24 px-4 sm:px-6 lg:px-8 border-y border-white/10 bg-[#1a1a1a]">
           <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-12">
             
             {/* Left Column: Stats */}
             <div className="md:col-span-1 space-y-6">
-              <h2 className="text-3xl font-bold mb-4 text-cyan-400">Professional Summary</h2>
-              <p className="text-zinc-400 leading-relaxed border-l-4 border-cyan-600 pl-4 mb-8">
-                I am a driven final-year student dedicated to robust design and advanced computational analysis. My strength lies in transforming complex engineering problems into optimized, manufacturable solutions.
+              <h2 className="text-4xl font-extrabold mb-8 text-white border-b-4 border-orange-500/50 pb-2 inline-block">Professional Summary</h2>
+              <p className="text-zinc-300 leading-relaxed mb-8">
+                I am a highly driven final-year Mechanical Engineering student with a passion for **data-driven design optimization** and hands-on fabrication. I leverage simulation software (FEA/CFD) and programming (Python/MATLAB) to deliver robust, efficient, and manufacturable solutions across robotics and automotive disciplines.
               </p>
               
-              <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
                 {statItems.map((stat, i) => (
                     <motion.div 
                         key={i} 
-                        initial={{ opacity: 0, x: -20 }}
-                        whileInView={{ opacity: 1, x: 0 }}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        whileInView={{ opacity: 1, scale: 1 }}
                         viewport={{ once: true }}
                         transition={{ delay: i * 0.1, duration: 0.5 }}
-                        className="p-4 bg-zinc-800/50 rounded-lg flex items-center gap-4 border border-zinc-700/50 hover:border-cyan-500/50 transition-colors"
+                        className="p-4 bg-[#0F0F0F] rounded-lg border border-orange-500/30 flex flex-col items-start"
                     >
                         {stat.icon}
-                        <div>
-                            <div className="text-xl font-bold text-white">{stat.val}</div>
-                            <div className="text-xs text-zinc-500 uppercase tracking-widest">{stat.label}</div>
-                        </div>
+                        <div className="text-3xl font-extrabold text-white mt-2">{stat.val}</div>
+                        <div className="text-xs text-zinc-500 uppercase tracking-widest">{stat.label}</div>
                     </motion.div>
                 ))}
               </div>
@@ -593,12 +607,12 @@ export default function App() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.2 }}
-                    className="p-8 bg-[#1f2937]/50 border border-cyan-400/20 rounded-xl shadow-lg shadow-black/20"
+                    className="p-8 bg-[#0F0F0F] border border-white/10 rounded-xl"
                  >
-                    <h3 className="text-xl font-bold text-white mb-2">B.S. Mechanical Engineering</h3>
-                    <p className="text-cyan-400 font-mono mb-2">University of Technology</p>
-                    <p className="text-zinc-500 text-sm">Graduation: May 2025 | GPA: 3.8/4.0</p>
-                    <p className="text-zinc-500 text-sm mt-2">Relevant coursework: Advanced Thermodynamics, System Dynamics, Robotics, Materials Science.</p>
+                    <h3 className="text-2xl font-bold text-white mb-2">B.S. Mechanical Engineering</h3>
+                    <p className="text-orange-500 font-mono mb-2">University of Technology</p>
+                    <p className="text-zinc-400 text-sm">Graduation: May 2025 | GPA: 3.8/4.0</p>
+                    <p className="text-zinc-500 text-sm mt-2">Specialization in Advanced Dynamics and Computational Methods.</p>
                  </motion.div>
                  {/* Experience Placeholder */}
                  <motion.div 
@@ -606,22 +620,22 @@ export default function App() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.3 }}
-                    className="p-8 bg-[#1f2937]/50 border border-cyan-400/20 rounded-xl shadow-lg shadow-black/20"
+                    className="p-8 bg-[#0F0F0F] border border-white/10 rounded-xl"
                  >
-                    <h3 className="text-xl font-bold text-white mb-2">Robotics Design Intern</h3>
-                    <p className="text-cyan-400 font-mono mb-2">Innovation Labs</p>
-                    <p className="text-zinc-500 text-sm">Summer 2024</p>
-                    <p className="text-zinc-500 text-sm mt-2">Assisted in the development of a collaborative arm, focusing on end-effector mechanics and safety protocols.</p>
+                    <h3 className="text-2xl font-bold text-white mb-2">Design & Analysis Intern</h3>
+                    <p className="text-orange-500 font-mono mb-2">Precision Dynamics Corp.</p>
+                    <p className="text-zinc-400 text-sm">Summer 2024</p>
+                    <p className="text-zinc-500 text-sm mt-2">Reduced fixture vibration by 30% through modal analysis and material changes.</p>
                  </motion.div>
                </div>
                
                {/* Certifications and Links */}
                <div className="mt-8">
-                   <h3 className="text-lg font-bold text-white mb-4 border-b border-zinc-700/50 pb-2">Certifications & Credentials</h3>
+                   <h3 className="text-lg font-bold text-white mb-4 border-b border-zinc-700/50 pb-2">Credentials & Documents</h3>
                    <div className="flex flex-wrap gap-4">
-                       <span className="px-4 py-2 bg-zinc-800/60 text-cyan-300 rounded-full text-sm border border-cyan-500/20">CSWP - SolidWorks Professional</span>
-                       <span className="px-4 py-2 bg-zinc-800/60 text-cyan-300 rounded-full text-sm border border-cyan-500/20">Certified ANSYS Associate</span>
-                       <a href="#" className="px-4 py-2 bg-zinc-800/60 text-cyan-300 rounded-full text-sm border border-cyan-500/20 hover:bg-cyan-500/10 transition-colors flex items-center gap-2">
+                       <span className="px-4 py-2 bg-orange-500/10 text-orange-300 rounded-full text-sm border border-orange-500/50">CSWP - SolidWorks Professional</span>
+                       <span className="px-4 py-2 bg-orange-500/10 text-orange-300 rounded-full text-sm border border-orange-500/50">Certified ANSYS Associate</span>
+                       <a href="#" className="px-4 py-2 bg-white text-[#0F0F0F] rounded-full text-sm font-bold hover:bg-zinc-300 transition-colors flex items-center gap-2">
                            View Resume <Download size={16} />
                        </a>
                    </div>
@@ -631,52 +645,49 @@ export default function App() {
         </section>
 
         {/* SKILLS SECTION */}
-        <section id="skills" ref={el => sectionsRef.current.skills = el} className="py-24 px-4 sm:px-6 lg:px-8 bg-[#0D1117] border-b border-white/5">
+        <section id="skills" ref={el => sectionsRef.current.skills = el} className="py-24 px-4 sm:px-6 lg:px-8 bg-[#0F0F0F] border-b border-white/10">
            <div className="max-w-7xl mx-auto">
-              <h2 className="text-4xl font-extrabold mb-12 flex items-center gap-3 text-white">
-                 <Wrench className="text-cyan-400" size={32} />
+              <h2 className="text-5xl font-extrabold mb-12 flex items-center gap-3 text-white">
+                 <Gauge className="text-orange-500" size={38} />
                  The Technical Arsenal
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {skills.map((skill, index) => (
-                    <SkillBar key={index} {...skill} />
+                    <SkillCard key={index} {...skill} />
                   ))}
               </div>
            </div>
         </section>
 
         {/* PROJECTS SECTION */}
-        <section id="projects" ref={el => sectionsRef.current.projects = el} className="py-24 px-4 sm:px-6 lg:px-8 bg-[#0D1117]">
+        <section id="projects" ref={el => sectionsRef.current.projects = el} className="py-24 px-4 sm:px-6 lg:px-8 bg-[#0F0F0F]">
           <div className="max-w-7xl mx-auto">
              <div className="mb-12">
-                <h2 className="text-4xl font-extrabold mb-4 text-white">Engineering Portfolio</h2>
-                <p className="text-zinc-400 max-w-xl">Interactive simulations and detailed technical summaries of my core projects in design and analysis.</p>
+                <h2 className="text-5xl font-extrabold mb-4 text-white">Core Engineering Projects</h2>
+                <p className="text-zinc-400 max-w-xl text-lg">Detailed analyses, CAD models, and simulations demonstrating core competencies.</p>
              </div>
 
              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                {projects.map((project, index) => (
                  <motion.div
                    key={index}
-                   initial={{ opacity: 0, y: 20 }}
+                   initial={{ opacity: 0, y: 30 }}
                    whileInView={{ opacity: 1, y: 0 }}
                    viewport={{ once: true }}
                    transition={{ delay: index * 0.1 }}
                    onClick={() => setSelectedProject(project)}
-                   whileHover={{ y: -8, boxShadow: "0 15px 30px -10px rgba(0, 255, 255, 0.3)" }} 
-                   className="group cursor-pointer bg-[#1f2937]/50 border border-zinc-700/50 rounded-xl overflow-hidden hover:border-cyan-500 transition-all duration-300 relative p-6"
+                   whileHover={{ y: -6, boxShadow: `0 10px 20px -5px ${ACCENT_COLOR}60` }} 
+                   className="group cursor-pointer bg-[#1a1a1a] border border-white/10 rounded-xl overflow-hidden transition-all duration-300 relative p-6 hover:border-orange-500"
                  >
-                    {/* Floating Accent Border */}
-                    <div className="absolute inset-0 border-4 border-transparent rounded-xl pointer-events-none group-hover:border-cyan-500/50 transition-all duration-500 animate-pulse-slow"></div>
-
-                    <div className="mb-4 text-cyan-400">
+                    <div className="mb-4 text-orange-500">
                          {project.icon}
                     </div>
                    
-                    <h3 className="text-xl font-bold text-white mb-2 group-hover:text-cyan-400 transition-colors">{project.title}</h3>
+                    <h3 className="text-xl font-bold text-white mb-2 group-hover:text-orange-500 transition-colors">{project.title}</h3>
                     <p className="text-zinc-400 text-sm mb-4 line-clamp-3">{project.description}</p>
                     <div className="flex flex-wrap gap-2 pt-2 border-t border-zinc-700/50">
                        {project.tags.slice(0, 3).map(tag => (
-                          <span key={tag} className="px-3 py-1 text-xs rounded-full bg-cyan-400/10 text-cyan-300 font-mono">{tag}</span>
+                          <span key={tag} className="px-3 py-1 text-xs rounded-full bg-orange-500/10 text-orange-300 font-mono">{tag}</span>
                        ))}
                     </div>
                  </motion.div>
@@ -686,18 +697,18 @@ export default function App() {
         </section>
 
         {/* CONTACT SECTION */}
-        <section id="contact" ref={el => sectionsRef.current.contact = el} className="py-24 px-4 sm:px-6 lg:px-8 bg-[#1f2937]/50 border-t border-white/5">
+        <section id="contact" ref={el => sectionsRef.current.contact = el} className="py-24 px-4 sm:px-6 lg:px-8 bg-[#1a1a1a] border-t border-white/10">
            <div className="max-w-4xl mx-auto text-center">
-              <h2 className="text-5xl font-extrabold mb-6 text-white">Ready for the next challenge.</h2>
+              <h2 className="text-5xl font-extrabold mb-6 text-white">Let's build the future, together.</h2>
               <p className="text-zinc-400 text-xl mb-12 max-w-3xl mx-auto">
-                 I am actively seeking full-time and internship opportunities. Let's connect and discuss how my skills can contribute to your team's success.
+                 I am actively seeking full-time and internship opportunities where I can apply my analytical and design skills.
               </p>
               <div className="flex justify-center gap-6 mb-16">
                  <motion.a 
                     href="mailto:johndoe@email.com" 
                     whileHover={{ scale: 1.1, backgroundColor: ACCENT_COLOR, color: BACKGROUND_COLOR }}
                     whileTap={{ scale: 0.9 }}
-                    className="p-5 bg-white/5 rounded-full text-cyan-400 border border-cyan-400/50 transition-all shadow-lg shadow-cyan-900/30"
+                    className="p-5 bg-white/5 rounded-full text-orange-400 border border-orange-400/50 transition-all shadow-lg shadow-orange-900/30"
                  >
                     <Mail size={28} />
                  </motion.a>
@@ -705,7 +716,7 @@ export default function App() {
                     href="#" 
                     whileHover={{ scale: 1.1, backgroundColor: ACCENT_COLOR, color: BACKGROUND_COLOR }}
                     whileTap={{ scale: 0.9 }}
-                    className="p-5 bg-white/5 rounded-full text-cyan-400 border border-cyan-400/50 transition-all shadow-lg shadow-cyan-900/30"
+                    className="p-5 bg-white/5 rounded-full text-orange-400 border border-orange-400/50 transition-all shadow-lg shadow-orange-900/30"
                  >
                     <Linkedin size={28} />
                  </motion.a>
@@ -713,7 +724,7 @@ export default function App() {
                     href="#" 
                     whileHover={{ scale: 1.1, backgroundColor: ACCENT_COLOR, color: BACKGROUND_COLOR }}
                     whileTap={{ scale: 0.9 }}
-                    className="p-5 bg-white/5 rounded-full text-cyan-400 border border-cyan-400/50 transition-all shadow-lg shadow-cyan-900/30"
+                    className="p-5 bg-white/5 rounded-full text-orange-400 border border-orange-400/50 transition-all shadow-lg shadow-orange-900/30"
                  >
                     <Github size={28} />
                  </motion.a>
