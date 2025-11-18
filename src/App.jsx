@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect, Suspense } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera, Environment, Float, Text, useTexture, Stars, MeshDistortMaterial } from '@react-three/drei';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { PerspectiveCamera, Environment, Float, Stars, ContactShadows, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -15,115 +15,124 @@ import {
   ChevronDown, 
   ExternalLink,
   Box,
-  Play,
   Menu,
-  X
+  X,
+  User,
+  Download,
+  Maximize2
 } from 'lucide-react';
 
 // --- 3D COMPONENTS ---
 
-// Procedural Gear Component
+// Procedural Gear (Background Element)
 const Gear = ({ position, color, speed, size, teeth, ...props }) => {
   const meshRef = useRef();
-  
   useFrame((state, delta) => {
-    if (meshRef.current) {
-      meshRef.current.rotation.z += delta * speed;
-    }
+    if (meshRef.current) meshRef.current.rotation.z += delta * speed;
   });
 
-  // Create gear geometry procedurally to avoid external asset dependency
   const gearGeometry = useMemo(() => {
     const shape = new THREE.Shape();
     const outerRadius = size;
     const innerRadius = size * 0.8;
     const holeRadius = size * 0.3;
     const numTeeth = teeth;
-
     for (let i = 0; i < numTeeth * 2; i++) {
       const angle = (Math.PI * 2 * i) / (numTeeth * 2);
       const radius = i % 2 === 0 ? outerRadius : innerRadius;
       const x = Math.cos(angle) * radius;
       const y = Math.sin(angle) * radius;
-      if (i === 0) shape.moveTo(x, y);
-      else shape.lineTo(x, y);
+      if (i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
     }
-    
     const holePath = new THREE.Path();
     holePath.absarc(0, 0, holeRadius, 0, Math.PI * 2, false);
     shape.holes.push(holePath);
-
-    const extrudeSettings = { depth: 0.5, bevelEnabled: true, bevelSegments: 2, steps: 2, bevelSize: 0.1, bevelThickness: 0.1 };
-    return new THREE.ExtrudeGeometry(shape, extrudeSettings);
+    return new THREE.ExtrudeGeometry(shape, { depth: 0.5, bevelEnabled: true, bevelSegments: 2, steps: 2, bevelSize: 0.1, bevelThickness: 0.1 });
   }, [size, teeth]);
 
   return (
-    <mesh ref={meshRef} position={position} {...props} castShadow receiveShadow>
+    <mesh ref={meshRef} position={position} {...props}>
       <primitive object={gearGeometry} attach="geometry" />
-      <meshStandardMaterial 
-        color={color} 
-        roughness={0.3} 
-        metalness={0.8} 
-        emissive={color}
-        emissiveIntensity={0.2}
-      />
+      <meshStandardMaterial color={color} roughness={0.3} metalness={0.8} emissive={color} emissiveIntensity={0.2} />
     </mesh>
   );
 };
 
-// Connecting Shaft
-const Shaft = ({ position, length, rotation }) => {
+// Procedural Rover Model (For the EFX Project)
+const RoverModel = () => {
+  const roverRef = useRef();
+  
+  useFrame((state) => {
+    if(roverRef.current) {
+        roverRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.5) * 0.2;
+    }
+  });
+
   return (
-    <mesh position={position} rotation={rotation} castShadow>
-      <cylinderGeometry args={[0.2, 0.2, length, 16]} />
-      <meshStandardMaterial color="#555" roughness={0.2} metalness={0.9} />
-    </mesh>
+    <group ref={roverRef} scale={1.5}>
+      {/* Chassis */}
+      <mesh position={[0, 0.5, 0]} castShadow>
+        <boxGeometry args={[2, 0.5, 3]} />
+        <meshStandardMaterial color="#e11d48" roughness={0.4} metalness={0.6} />
+      </mesh>
+      
+      {/* Wheels */}
+      {[[-1.2, 0.5, 1], [1.2, 0.5, 1], [-1.2, 0.5, -1], [1.2, 0.5, -1]].map((pos, i) => (
+        <group position={pos} key={i} rotation={[0, 0, Math.PI / 2]}>
+          <mesh castShadow>
+            <cylinderGeometry args={[0.4, 0.4, 0.4, 32]} />
+            <meshStandardMaterial color="#111" roughness={0.8} />
+          </mesh>
+          <mesh rotation={[0, 0, 0]}>
+             <cylinderGeometry args={[0.2, 0.2, 0.42, 6]} />
+             <meshStandardMaterial color="#333" wireframe />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Top Sensor Array */}
+      <group position={[0, 0.8, 0.5]}>
+        <mesh position={[0, 0.2, 0]}>
+           <cylinderGeometry args={[0.1, 0.1, 0.5]} />
+           <meshStandardMaterial color="#888" />
+        </mesh>
+        <mesh position={[0, 0.5, 0]}>
+           <sphereGeometry args={[0.2]} />
+           <meshStandardMaterial color="#3b82f6" emissive="#3b82f6" emissiveIntensity={2} />
+        </mesh>
+      </group>
+    </group>
   );
 };
 
-// Main Mechanical Assembly Scene
-const MechanicalScene = ({ currentSection }) => {
-  const groupRef = useRef();
+// Generic Project Model (Placeholder for others)
+const GenericCADModel = ({ color }) => (
+  <group>
+    <mesh castShadow>
+      <torusKnotGeometry args={[1, 0.3, 100, 16]} />
+      <meshStandardMaterial color={color} roughness={0.2} metalness={0.9} />
+    </mesh>
+  </group>
+);
 
+// Scene Manager
+const BackgroundScene = ({ currentSection }) => {
+  const groupRef = useRef();
   useFrame((state) => {
     if (!groupRef.current) return;
-    
-    // Subtle floating animation for the whole assembly
     const t = state.clock.getElapsedTime();
-    groupRef.current.position.y = Math.sin(t * 0.5) * 0.2;
-    
-    // Rotate based on scroll/section (simulated by currentSection prop)
-    // In a real app, you might bind this to scrollY directly
-    const targetRotation = currentSection === 'hero' ? 0 : 
-                          currentSection === 'about' ? 1.5 : 
-                          currentSection === 'projects' ? 3.2 : 4.5;
-    
-    groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, targetRotation, 0.02);
-    groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, currentSection === 'hero' ? 0.2 : 0, 0.02);
+    groupRef.current.rotation.y = t * 0.05;
+    groupRef.current.position.y = Math.sin(t * 0.2) * 0.5;
   });
 
   return (
     <group ref={groupRef}>
-      {/* Main Driving Gear */}
-      <Gear position={[0, 0, 0]} size={2.5} teeth={12} speed={0.5} color="#3b82f6" />
-      
-      {/* Secondary Gears */}
-      <Gear position={[3.2, 0, 0]} size={1.5} teeth={8} speed={-0.83} color="#f97316" />
-      <Gear position={[-3.2, 0, 0]} size={1.5} teeth={8} speed={-0.83} color="#10b981" />
-      
-      {/* Vertical Stack */}
-      <Shaft position={[0, 0, 1]} length={4} rotation={[Math.PI / 2, 0, 0]} />
-      <Gear position={[0, 0, 2]} size={1.2} teeth={8} speed={0.5} color="#6366f1" />
-      
-      {/* Background Elements */}
-      <Float speed={2} rotationIntensity={0.5} floatIntensity={1}>
-        <mesh position={[5, 3, -5]}>
-          <icosahedronGeometry args={[1, 0]} />
-          <meshStandardMaterial wireframe color="#333" />
-        </mesh>
-        <mesh position={[-5, -3, -5]}>
-          <octahedronGeometry args={[1, 0]} />
-          <meshStandardMaterial wireframe color="#333" />
+      <Gear position={[-4, 2, -5]} size={2} teeth={12} speed={0.2} color="#333" />
+      <Gear position={[4, -2, -8]} size={3} teeth={16} speed={-0.1} color="#222" />
+      <Float speed={2} rotationIntensity={0.5} floatIntensity={0.5}>
+        <mesh position={[0, 0, -10]}>
+          <sphereGeometry args={[0.5, 16, 16]} />
+          <meshStandardMaterial color="#3b82f6" emissive="#3b82f6" emissiveIntensity={5} />
         </mesh>
       </Float>
     </group>
@@ -135,8 +144,9 @@ const MechanicalScene = ({ currentSection }) => {
 const Navbar = ({ activeSection, scrollToSection, mobileMenuOpen, setMobileMenuOpen }) => {
   const navItems = [
     { id: 'hero', label: 'Home' },
-    { id: 'about', label: 'Engineering' },
-    { id: 'projects', label: 'Simulations' },
+    { id: 'profile', label: 'Profile' },
+    { id: 'projects', label: 'Projects' },
+    { id: 'skills', label: 'Skills' },
     { id: 'contact', label: 'Contact' }
   ];
 
@@ -148,8 +158,6 @@ const Navbar = ({ activeSection, scrollToSection, mobileMenuOpen, setMobileMenuO
             <Cog className={`w-6 h-6 text-blue-500 ${activeSection === 'hero' ? 'animate-spin-slow' : ''}`} />
             <span>MECH<span className="text-blue-500">.FOLIO</span></span>
           </div>
-          
-          {/* Desktop Nav */}
           <div className="hidden md:block">
             <div className="ml-10 flex items-baseline space-x-4">
               {navItems.map((item) => (
@@ -157,9 +165,7 @@ const Navbar = ({ activeSection, scrollToSection, mobileMenuOpen, setMobileMenuO
                   key={item.id}
                   onClick={() => scrollToSection(item.id)}
                   className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-300 ${
-                    activeSection === item.id 
-                      ? 'text-blue-500 bg-white/5' 
-                      : 'text-gray-300 hover:text-white hover:bg-white/10'
+                    activeSection === item.id ? 'text-blue-500 bg-white/5' : 'text-gray-300 hover:text-white'
                   }`}
                 >
                   {item.label}
@@ -167,20 +173,13 @@ const Navbar = ({ activeSection, scrollToSection, mobileMenuOpen, setMobileMenuO
               ))}
             </div>
           </div>
-
-          {/* Mobile Menu Button */}
           <div className="md:hidden">
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="text-gray-300 hover:text-white p-2"
-            >
+            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-gray-300 hover:text-white p-2">
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
           </div>
         </div>
       </div>
-
-      {/* Mobile Nav */}
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div
@@ -193,11 +192,8 @@ const Navbar = ({ activeSection, scrollToSection, mobileMenuOpen, setMobileMenuO
               {navItems.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => {
-                    scrollToSection(item.id);
-                    setMobileMenuOpen(false);
-                  }}
-                  className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/10"
+                  onClick={() => { scrollToSection(item.id); setMobileMenuOpen(false); }}
+                  className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white"
                 >
                   {item.label}
                 </button>
@@ -210,85 +206,120 @@ const Navbar = ({ activeSection, scrollToSection, mobileMenuOpen, setMobileMenuO
   );
 };
 
-const Section = ({ id, children, className = "" }) => (
-  <section id={id} className={`min-h-screen flex flex-col justify-center relative z-10 px-4 sm:px-6 lg:px-8 ${className}`}>
-    {children}
-  </section>
-);
+const ProjectModal = ({ project, onClose }) => {
+  if (!project) return null;
 
-const ProjectCard = ({ project, index }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 50 }}
-    whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true }}
-    transition={{ delay: index * 0.2 }}
-    className="group relative bg-zinc-900/50 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden hover:border-blue-500/50 transition-colors duration-300"
-  >
-    {/* Simulated CAD Viewport Header */}
-    <div className="bg-black/50 p-2 flex justify-between items-center border-b border-white/5 text-xs font-mono text-zinc-500">
-      <div className="flex gap-2">
-        <span className="text-blue-500">VIEW: ISOMETRIC</span>
-        <span>SCALE: 1:1</span>
-      </div>
-      <div className="flex gap-1">
-        <div className="w-2 h-2 rounded-full bg-red-500/50"></div>
-        <div className="w-2 h-2 rounded-full bg-yellow-500/50"></div>
-        <div className="w-2 h-2 rounded-full bg-green-500/50"></div>
-      </div>
-    </div>
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }} 
+      animate={{ opacity: 1 }} 
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm"
+    >
+      <div className="relative w-full max-w-6xl h-[85vh] bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden flex flex-col md:flex-row shadow-2xl shadow-blue-900/20">
+        <button 
+          onClick={onClose}
+          className="absolute top-4 right-4 z-10 p-2 bg-black/50 text-white rounded-full hover:bg-red-500/80 transition-colors"
+        >
+          <X size={24} />
+        </button>
 
-    <div className="p-6">
-      <div className="flex justify-between items-start mb-4">
-        <div className={`p-3 rounded-lg bg-${project.color}-500/10`}>
-          {project.icon}
+        {/* Left: Interactive 3D View */}
+        <div className="w-full md:w-2/3 h-1/2 md:h-full bg-black relative">
+          <div className="absolute top-4 left-4 z-10 px-3 py-1 bg-black/60 text-blue-400 text-xs font-mono border border-blue-500/30 rounded">
+            INTERACTIVE 3D PREVIEW - DRAG TO ROTATE
+          </div>
+          <Canvas shadows>
+            <Suspense fallback={null}>
+              <PerspectiveCamera makeDefault position={[4, 3, 5]} />
+              <OrbitControls enablePan={false} autoRotate autoRotateSpeed={1} />
+              <ambientLight intensity={0.6} />
+              <spotLight position={[10, 10, 10]} angle={0.5} penumbra={1} castShadow intensity={1} />
+              <Environment preset="city" />
+              
+              <Float speed={2} rotationIntensity={0.2} floatIntensity={0.2}>
+                {/* Render specific model based on project ID or render generic */}
+                {project.id === 'rover' ? (
+                  <RoverModel />
+                ) : (
+                  <GenericCADModel color={project.colorStr} />
+                )}
+              </Float>
+              <ContactShadows position={[0, -1.5, 0]} opacity={0.5} scale={10} blur={1.5} far={4} />
+            </Suspense>
+          </Canvas>
         </div>
-        <a href="#" className="text-zinc-500 hover:text-white transition-colors">
-          <ExternalLink size={20} />
-        </a>
+
+        {/* Right: Details */}
+        <div className="w-full md:w-1/3 h-1/2 md:h-full overflow-y-auto p-8 bg-zinc-900 border-l border-white/5">
+          <div className={`inline-block p-3 rounded-lg bg-${project.color}-500/10 mb-6`}>
+            {project.icon}
+          </div>
+          
+          <h2 className="text-3xl font-bold text-white mb-2">{project.title}</h2>
+          <p className="text-zinc-500 text-sm mb-6 font-mono">{project.date || "Fall 2024"}</p>
+          
+          <div className="prose prose-invert prose-sm mb-8 text-zinc-300">
+            <p>{project.fullDescription || project.description}</p>
+          </div>
+
+          <div className="mb-8">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3">Tech Stack</h3>
+            <div className="flex flex-wrap gap-2">
+              {project.tags.map(tag => (
+                <span key={tag} className="px-2 py-1 text-xs rounded-md bg-white/5 text-blue-300 border border-blue-500/20">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Gallery Placeholder */}
+          <div className="mb-8">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3">Gallery</h3>
+            <div className="grid grid-cols-2 gap-2">
+               {[1,2,3,4].map(i => (
+                 <div key={i} className="aspect-square bg-zinc-800 rounded hover:bg-zinc-700 transition-colors flex items-center justify-center text-zinc-600 text-xs">
+                   Img {i}
+                 </div>
+               ))}
+            </div>
+          </div>
+
+          <div className="flex gap-4">
+             <button className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2">
+                <Download size={16} /> Download Report
+             </button>
+             <button className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold text-sm transition-all border border-white/10">
+                View Source
+             </button>
+          </div>
+        </div>
       </div>
-      
-      <h3 className="text-xl font-bold text-white mb-2 group-hover:text-blue-400 transition-colors">
-        {project.title}
-      </h3>
-      <p className="text-zinc-400 text-sm mb-4 line-clamp-3">
-        {project.description}
-      </p>
-      
-      <div className="flex flex-wrap gap-2 mt-auto">
-        {project.tags.map((tag) => (
-          <span key={tag} className="px-2 py-1 text-xs rounded-md bg-white/5 text-zinc-300 border border-white/5">
-            {tag}
-          </span>
-        ))}
-      </div>
-    </div>
-    
-    {/* Hover Glow Effect */}
-    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-  </motion.div>
-);
+    </motion.div>
+  );
+};
 
 // --- MAIN APP COMPONENT ---
 
 export default function App() {
   const [activeSection, setActiveSection] = useState('hero');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null);
 
-  // Update active section on scroll
   useEffect(() => {
     const handleScroll = () => {
-      const sections = ['hero', 'about', 'projects', 'contact'];
+      const sections = ['hero', 'profile', 'projects', 'skills', 'contact'];
       const current = sections.find(section => {
         const element = document.getElementById(section);
         if (element) {
           const rect = element.getBoundingClientRect();
-          return rect.top <= 100 && rect.bottom >= 100;
+          return rect.top <= 150 && rect.bottom >= 150;
         }
         return false;
       });
       if (current) setActiveSection(current);
     };
-
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
@@ -303,32 +334,44 @@ export default function App() {
 
   const projects = [
     {
+      id: "rover",
+      title: "3D Printed Rover for EFX",
+      description: "A fully functional modular rover chassis designed for the EFX planetary exploration challenge. Features a custom suspension system and 3D printed modular wheels.",
+      fullDescription: "This project involved the complete design lifecycle of a planetary rover prototype. I used Fusion 360 for the chassis design, focusing on printability and structural integrity using PLA+ and PETG filaments. The rover utilizes a rocker-bogie suspension system adapted for 3D printing to navigate rough terrain. The wheels are a compliant mechanism design to absorb shock without pneumatic tires.",
+      tags: ["Fusion 360", "3D Printing", "Arduino", "C++"],
+      icon: <Cpu className="text-red-500" size={24} />,
+      color: "red",
+      colorStr: "#ef4444"
+    },
+    {
+      id: "fea",
       title: "Cycloidal Gearbox FEA",
       description: "Finite Element Analysis of a high-reduction cycloidal drive used in robotic joints. Optimized for weight reduction while maintaining stress safety factors.",
+      fullDescription: "Performed static structural analysis to identify stress concentrations under maximum torque loads. Topology optimization was applied to the housing to reduce mass by 22% while maintaining a Factor of Safety of 2.5.",
       tags: ["SolidWorks", "ANSYS", "Matlab"],
       icon: <Cog className="text-orange-500" size={24} />,
-      color: "orange"
+      color: "orange",
+      colorStr: "#f97316"
     },
     {
+      id: "cfd",
       title: "Drone Aerodynamics CFD",
       description: "Computational Fluid Dynamics simulation of propeller thrust and body drag for a custom quadcopter frame. Analyzed turbulence models to improve battery efficiency.",
+      fullDescription: "Simulated airflow over the drone fuselage using OpenFOAM. The analysis led to a fuselage redesign that reduced drag by 14% at cruising speeds.",
       tags: ["OpenFOAM", "Fusion 360", "Python"],
       icon: <Wind className="text-blue-500" size={24} />,
-      color: "blue"
+      color: "blue",
+      colorStr: "#3b82f6"
     },
     {
-      title: "6-DOF Robot Arm",
-      description: "Full kinematic simulation and control system design for a 6-axis articulated robot arm. Implemented inverse kinematics solver and path planning algorithms.",
-      tags: ["ROS", "Gazebo", "C++"],
-      icon: <Cpu className="text-green-500" size={24} />,
-      color: "green"
-    },
-    {
+      id: "suspension",
       title: "Suspension System Optimization",
       description: "Multi-body dynamic simulation of a double wishbone suspension. Optimized damper coefficients for off-road terrain handling.",
+      fullDescription: "Created a mathematical model of a quarter-car suspension and ran simulations in MATLAB Simulink to tune the damping ratios for critical damping response.",
       tags: ["ADAMS", "Simulink", "Vehicle Dynamics"],
       icon: <Layers className="text-purple-500" size={24} />,
-      color: "purple"
+      color: "purple",
+      colorStr: "#a855f7"
     }
   ];
 
@@ -347,25 +390,15 @@ export default function App() {
           <Suspense fallback={null}>
             <PerspectiveCamera makeDefault position={[0, 0, 10]} fov={45} />
             <color attach="background" args={['#09090b']} />
-            
-            {/* Lighting */}
             <ambientLight intensity={0.5} />
-            <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={1} castShadow />
             <pointLight position={[-10, -10, -10]} intensity={0.5} color="#3b82f6" />
-            
-            <MechanicalScene currentSection={activeSection} />
-            
-            <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
+            <BackgroundScene currentSection={activeSection} />
+            <Stars radius={100} depth={50} count={3000} factor={4} saturation={0} fade speed={1} />
             <Environment preset="city" />
           </Suspense>
         </Canvas>
-        
-        {/* Vignette & Grid Overlay */}
         <div className="absolute inset-0 pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
-        <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-zinc-950/80 via-transparent to-zinc-950/80"></div>
-        <div className="absolute inset-0 pointer-events-none opacity-10" 
-             style={{ backgroundImage: 'linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px)', backgroundSize: '40px 40px' }}>
-        </div>
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-zinc-950/90 via-zinc-950/40 to-zinc-950/90"></div>
       </div>
 
       <Navbar 
@@ -376,12 +409,13 @@ export default function App() {
       />
 
       <main className="relative z-10">
+        
         {/* HERO SECTION */}
-        <Section id="hero" className="pt-20">
-          <div className="max-w-4xl">
+        <section id="hero" className="min-h-screen flex flex-col justify-center px-4 sm:px-6 lg:px-8 pt-20">
+          <div className="max-w-4xl mx-auto w-full">
             <motion.div
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8 }}
             >
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm font-medium mb-6">
@@ -389,67 +423,136 @@ export default function App() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                 </span>
-                Open for Spring 2025 Internships
+                Available for Spring 2025
               </div>
-              
               <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-white mb-6">
-                Engineering the <br />
+                Designed for <br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-emerald-500">
-                  Future Mechanics
+                  Performance.
                 </span>
               </h1>
-              
               <p className="text-xl text-zinc-400 max-w-2xl mb-8 leading-relaxed">
-                Mechanical Engineering student specializing in CAD design, FEA simulations, and Robotics. 
-                Turning complex physics into functional reality.
+                Mechanical Engineering Portfolio specializing in Robotics, Additive Manufacturing, and Computational Simulation.
               </p>
-              
               <div className="flex flex-wrap gap-4">
-                <button 
-                  onClick={() => scrollToSection('projects')}
-                  className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition-all flex items-center gap-2 group"
-                >
-                  View Simulations
-                  <ChevronDown className="group-hover:translate-y-1 transition-transform" />
+                <button onClick={() => scrollToSection('profile')} className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition-all flex items-center gap-2">
+                   See Profile <User size={20} />
                 </button>
-                <button 
-                  onClick={() => scrollToSection('contact')}
-                  className="px-8 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold transition-all border border-zinc-700"
-                >
-                  Contact Me
+                <button onClick={() => scrollToSection('projects')} className="px-8 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold transition-all border border-zinc-700">
+                   View Projects
                 </button>
               </div>
             </motion.div>
           </div>
-          
-          {/* Scroll Indicator */}
-          <motion.div 
-            className="absolute bottom-10 left-1/2 -translate-x-1/2 text-zinc-500 flex flex-col items-center gap-2"
-            animate={{ y: [0, 10, 0] }}
-            transition={{ repeat: Infinity, duration: 2 }}
-          >
-            <span className="text-xs uppercase tracking-widest">Scroll to Explore</span>
-            <ChevronDown />
-          </motion.div>
-        </Section>
+        </section>
 
-        {/* ABOUT SECTION */}
-        <Section id="about">
-          <div className="max-w-7xl mx-auto w-full">
-            <motion.div
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              viewport={{ once: true }}
-              className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center"
-            >
-              <div>
-                <h2 className="text-3xl md:text-4xl font-bold mb-8 flex items-center gap-3">
-                  <Wrench className="text-blue-500" />
-                  Technical Arsenal
-                </h2>
-                <div className="space-y-8">
-                  {skills.map((skill, index) => (
-                    <div key={skill.name} className="relative">
+        {/* PROFILE / SUMMARY SECTION */}
+        <section id="profile" className="py-20 px-4 sm:px-6 lg:px-8 bg-zinc-900/30 backdrop-blur-sm border-y border-white/5">
+          <div className="max-w-6xl mx-auto">
+            <div className="flex flex-col md:flex-row items-center gap-12">
+               <div className="w-full md:w-1/3">
+                 <div className="aspect-[3/4] rounded-2xl bg-zinc-800 border border-white/10 relative overflow-hidden group">
+                    {/* Placeholder for Headshot */}
+                    <div className="absolute inset-0 flex items-center justify-center bg-zinc-800 text-zinc-600">
+                       <User size={64} />
+                       <span className="absolute bottom-4 text-xs uppercase tracking-widest">Add Headshot Here</span>
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-60"></div>
+                    <div className="absolute bottom-0 left-0 p-6">
+                       <h3 className="text-2xl font-bold text-white">John Doe</h3>
+                       <p className="text-blue-400 font-mono">Mechanical Engineer</p>
+                    </div>
+                 </div>
+               </div>
+               <div className="w-full md:w-2/3">
+                  <h2 className="text-3xl font-bold mb-6 flex items-center gap-2">
+                     <span className="w-8 h-1 bg-blue-500 rounded-full"></span>
+                     About Me
+                  </h2>
+                  <p className="text-lg text-zinc-300 leading-relaxed mb-6">
+                     I am a final-year Mechanical Engineering student with a passion for bridging the gap between digital simulation and physical manufacturing. 
+                  </p>
+                  <p className="text-zinc-400 leading-relaxed mb-8">
+                     My experience spans from designing complex mechanisms in SolidWorks to verifying their integrity using ANSYS FEA. I have hands-on experience with rapid prototyping (3D printing, CNC) and have successfully led technical teams in university rover competitions. I am looking for a challenging role where I can apply my skills in product design and robotics.
+                  </p>
+                  
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                     {[
+                        { label: "Experience", val: "2 Years" },
+                        { label: "Projects", val: "15+" },
+                        { label: "GPA", val: "3.8/4.0" },
+                        { label: "Location", val: "Remote/Hybrid" }
+                     ].map((stat, i) => (
+                        <div key={i} className="p-4 bg-white/5 rounded-lg border border-white/5">
+                           <div className="text-2xl font-bold text-white mb-1">{stat.val}</div>
+                           <div className="text-xs text-zinc-500 uppercase tracking-wider">{stat.label}</div>
+                        </div>
+                     ))}
+                  </div>
+               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* PROJECTS SECTION */}
+        <section id="projects" className="py-20 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto">
+             <div className="mb-12">
+                <h2 className="text-4xl font-bold mb-4">Featured Projects</h2>
+                <p className="text-zinc-400 max-w-xl">Click on any project card to view the interactive 3D model, full technical details, and gallery.</p>
+             </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               {projects.map((project, index) => (
+                 <motion.div
+                   key={index}
+                   initial={{ opacity: 0, y: 20 }}
+                   whileInView={{ opacity: 1, y: 0 }}
+                   viewport={{ once: true }}
+                   transition={{ delay: index * 0.1 }}
+                   onClick={() => setSelectedProject(project)}
+                   className="group cursor-pointer bg-zinc-900/50 border border-white/10 rounded-2xl overflow-hidden hover:border-blue-500/50 transition-all duration-300 hover:transform hover:scale-[1.01]"
+                 >
+                   {/* Header Simulation */}
+                   <div className="bg-black/40 p-3 flex justify-between items-center border-b border-white/5">
+                      <div className="flex items-center gap-2 text-xs font-mono text-zinc-500">
+                         <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50"></div>
+                         <span>{project.id.toUpperCase()}_V04.STEP</span>
+                      </div>
+                      <Maximize2 size={14} className="text-zinc-600 group-hover:text-blue-400" />
+                   </div>
+                   
+                   <div className="p-8">
+                      <div className="flex justify-between items-start mb-6">
+                         <div className={`p-4 rounded-xl bg-${project.color}-500/10`}>
+                            {project.icon}
+                         </div>
+                      </div>
+                      <h3 className="text-2xl font-bold text-white mb-3 group-hover:text-blue-400 transition-colors">{project.title}</h3>
+                      <p className="text-zinc-400 text-sm mb-6 line-clamp-3">{project.description}</p>
+                      <div className="flex flex-wrap gap-2">
+                         {project.tags.map(tag => (
+                            <span key={tag} className="px-2 py-1 text-xs rounded bg-white/5 text-zinc-400">{tag}</span>
+                         ))}
+                      </div>
+                   </div>
+                   <div className="h-1 w-full bg-gradient-to-r from-transparent via-blue-500/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                 </motion.div>
+               ))}
+             </div>
+          </div>
+        </section>
+
+        {/* SKILLS SECTION (Revised) */}
+        <section id="skills" className="py-20 px-4 sm:px-6 lg:px-8 bg-zinc-900/30">
+           <div className="max-w-4xl mx-auto">
+              <h2 className="text-3xl font-bold mb-12 flex items-center gap-3">
+                 <Wrench className="text-blue-500" />
+                 Technical Arsenal
+              </h2>
+              <div className="space-y-8">
+                  {skills.map((skill) => (
+                    <div key={skill.name}>
                       <div className="flex justify-between mb-2">
                         <span className="font-bold text-zinc-200">{skill.name}</span>
                         <span className="text-zinc-500 text-sm">{skill.tools}</span>
@@ -459,134 +562,55 @@ export default function App() {
                           initial={{ width: 0 }}
                           whileInView={{ width: `${skill.level}%` }}
                           viewport={{ once: true }}
-                          transition={{ duration: 1, delay: 0.2 }}
+                          transition={{ duration: 1 }}
                           className="h-full bg-gradient-to-r from-blue-600 to-emerald-500"
                         />
                       </div>
                     </div>
                   ))}
-                </div>
-                
-                <div className="mt-12 p-6 bg-zinc-900/50 border border-white/10 rounded-xl">
-                  <h3 className="text-xl font-bold mb-4 text-white">Education</h3>
-                  <div className="flex items-start gap-4">
-                    <div className="p-3 bg-white/5 rounded-lg">
-                      <Layers size={24} className="text-blue-400" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-lg">B.S. Mechanical Engineering</h4>
-                      <p className="text-blue-400">Technical University</p>
-                      <p className="text-zinc-500 text-sm mt-1">2021 - Present • GPA: 3.8/4.0</p>
-                      <p className="text-zinc-400 text-sm mt-2">Focus on Mechatronics & Computational Mechanics</p>
-                    </div>
-                  </div>
-                </div>
               </div>
               
-              {/* The right side is left empty to show the 3D background rotation */}
-              <div className="hidden md:flex flex-col items-center justify-center h-[500px] relative">
-                <div className="absolute inset-0 border-2 border-dashed border-zinc-800 rounded-3xl flex items-center justify-center">
-                  <p className="text-zinc-600 font-mono text-sm animate-pulse">
-                    INTERACTIVE MODEL VIEW AREA
-                  </p>
-                </div>
+              <div className="mt-16 grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="p-6 bg-zinc-900/80 border border-white/10 rounded-xl">
+                    <h3 className="text-lg font-bold text-white mb-2">Education</h3>
+                    <p className="text-blue-400">B.S. Mechanical Engineering</p>
+                    <p className="text-zinc-500 text-sm">University of Tech • 2021-2025</p>
+                 </div>
+                 <div className="p-6 bg-zinc-900/80 border border-white/10 rounded-xl">
+                    <h3 className="text-lg font-bold text-white mb-2">Certifications</h3>
+                    <p className="text-zinc-300 text-sm">CSWP - Certified SolidWorks Professional</p>
+                    <p className="text-zinc-300 text-sm">Certified ANSYS Associate</p>
+                 </div>
               </div>
-            </motion.div>
-          </div>
-        </Section>
-
-        {/* PROJECTS SECTION */}
-        <Section id="projects">
-          <div className="max-w-7xl mx-auto w-full">
-            <div className="flex flex-col md:flex-row justify-between items-end mb-12">
-              <div>
-                <h2 className="text-3xl md:text-4xl font-bold mb-4 flex items-center gap-3">
-                  <Box className="text-blue-500" />
-                  Simulation Lab
-                </h2>
-                <p className="text-zinc-400 max-w-xl">
-                  A collection of my technical projects involving CAD design, finite element analysis, 
-                  and dynamic system simulation.
-                </p>
-              </div>
-              <a href="https://github.com" target="_blank" rel="noreferrer" className="hidden md:flex items-center gap-2 text-zinc-400 hover:text-white transition-colors mt-4 md:mt-0">
-                View all code <ExternalLink size={16} />
-              </a>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {projects.map((project, index) => (
-                <ProjectCard key={index} project={project} index={index} />
-              ))}
-            </div>
-          </div>
-        </Section>
+           </div>
+        </section>
 
         {/* CONTACT SECTION */}
-        <Section id="contact" className="pb-20">
-          <div className="max-w-3xl mx-auto w-full bg-zinc-900/80 backdrop-blur-md p-8 md:p-12 rounded-2xl border border-white/10">
-            <div className="text-center mb-10">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to Collaborate?</h2>
-              <p className="text-zinc-400">
-                Currently looking for internship opportunities in Robotics or Mechanical Design.
-                Let's build something extraordinary.
+        <section id="contact" className="py-20 px-4 sm:px-6 lg:px-8">
+           <div className="max-w-3xl mx-auto text-center">
+              <h2 className="text-4xl font-bold mb-6">Let's Build Something.</h2>
+              <p className="text-zinc-400 mb-10">
+                 I am actively seeking opportunities to apply my engineering skills. 
               </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-              <a href="mailto:hello@example.com" className="flex flex-col items-center justify-center p-6 bg-white/5 hover:bg-white/10 rounded-xl transition-colors border border-white/5 group">
-                <Mail className="mb-4 text-blue-500 group-hover:scale-110 transition-transform" size={32} />
-                <span className="font-medium text-zinc-200">Email Me</span>
-              </a>
-              <a href="https://linkedin.com" className="flex flex-col items-center justify-center p-6 bg-white/5 hover:bg-white/10 rounded-xl transition-colors border border-white/5 group">
-                <Linkedin className="mb-4 text-blue-500 group-hover:scale-110 transition-transform" size={32} />
-                <span className="font-medium text-zinc-200">LinkedIn</span>
-              </a>
-              <a href="https://github.com" className="flex flex-col items-center justify-center p-6 bg-white/5 hover:bg-white/10 rounded-xl transition-colors border border-white/5 group">
-                <Github className="mb-4 text-blue-500 group-hover:scale-110 transition-transform" size={32} />
-                <span className="font-medium text-zinc-200">GitHub</span>
-              </a>
-            </div>
-
-            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1">Name</label>
-                  <input 
-                    type="text" 
-                    className="w-full bg-black/50 border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
-                    placeholder="John Doe"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1">Email</label>
-                  <input 
-                    type="email" 
-                    className="w-full bg-black/50 border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
-                    placeholder="john@company.com"
-                  />
-                </div>
+              <div className="flex justify-center gap-6 mb-12">
+                 <a href="#" className="p-4 bg-white/5 rounded-full hover:bg-blue-600 hover:text-white transition-colors"><Mail size={24} /></a>
+                 <a href="#" className="p-4 bg-white/5 rounded-full hover:bg-blue-600 hover:text-white transition-colors"><Linkedin size={24} /></a>
+                 <a href="#" className="p-4 bg-white/5 rounded-full hover:bg-blue-600 hover:text-white transition-colors"><Github size={24} /></a>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Message</label>
-                <textarea 
-                  rows={4} 
-                  className="w-full bg-black/50 border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
-                  placeholder="Tell me about your project..."
-                ></textarea>
-              </div>
-              <button className="w-full bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-700 hover:to-emerald-700 text-white font-bold py-4 rounded-lg transition-all transform hover:scale-[1.02] shadow-lg shadow-blue-900/20">
-                Send Message
-              </button>
-            </form>
-          </div>
-        </Section>
+              <footer className="text-zinc-600 text-sm">
+                 © {new Date().getFullYear()} Mech.Folio
+              </footer>
+           </div>
+        </section>
 
-        {/* Footer */}
-        <footer className="py-8 text-center text-zinc-600 text-sm relative z-10 border-t border-zinc-900">
-          <p>© {new Date().getFullYear()} Mechanical Engineering Portfolio. Built with React & Three.js.</p>
-        </footer>
       </main>
+
+      {/* PROJECT MODAL */}
+      <AnimatePresence>
+        {selectedProject && (
+          <ProjectModal project={selectedProject} onClose={() => setSelectedProject(null)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
