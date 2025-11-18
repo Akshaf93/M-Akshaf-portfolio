@@ -1,6 +1,17 @@
 import React, { useState, useRef, useMemo, useEffect, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { PerspectiveCamera, Environment, Float, Stars, ContactShadows, OrbitControls, useGLTF, Text, AccumulativeShadows, RandomizedLight } from '@react-three/drei';
+import { 
+  PerspectiveCamera, 
+  Environment, 
+  Float, 
+  Stars, 
+  ContactShadows, 
+  OrbitControls, 
+  useGLTF, 
+  Text, 
+  AccumulativeShadows, 
+  RandomizedLight 
+} from '@react-three/drei';
 import * as THREE from 'three';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -12,24 +23,28 @@ import {
   Github, 
   Linkedin, 
   Mail, 
-  ChevronDown, 
-  ExternalLink,
-  Box,
-  Menu,
-  X,
   User,
   Download,
-  Maximize2
+  Maximize2,
+  GitBranch,
+  Target,
+  FlaskConical,
+  Zap
 } from 'lucide-react';
+
+// --- CONFIG & UTILS ---
+
+const BACKGROUND_COLOR = '#0D1117'; // Deep Navy/Black
+const ACCENT_COLOR = '#00FFFF';    // Bright Aqua
+const SHAPE_COUNT = 700;           // High number of instances, still fast
 
 // --- 3D COMPONENTS ---
 
-// Optimized Instanced Background Objects - Now with varied shapes
-const BackgroundInstances = ({ count = 500 }) => {
+// Optimized Instanced Background Objects - Varied Shapes (Cubes, Cylinders, etc.)
+const BackgroundInstances = ({ count = SHAPE_COUNT }) => {
   const meshRefs = useRef([]);
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
-  // Define geometries representing abstract engineering components
   const geometries = useMemo(() => [
     new THREE.BoxGeometry(0.08, 0.08, 0.08),
     new THREE.CylinderGeometry(0.04, 0.04, 0.2, 8),
@@ -41,9 +56,9 @@ const BackgroundInstances = ({ count = 500 }) => {
   const instanceData = useMemo(() => {
     return Array.from({ length: count }, () => ({
       position: [
-        (0.5 - Math.random()) * 20,
-        (0.5 - Math.random()) * 20,
-        (0.5 - Math.random()) * 20,
+        (0.5 - Math.random()) * 25,
+        (0.5 - Math.random()) * 25,
+        (0.5 - Math.random()) * 25,
       ],
       geometryIndex: Math.floor(Math.random() * geometries.length),
     }));
@@ -52,11 +67,9 @@ const BackgroundInstances = ({ count = 500 }) => {
   useFrame((state) => {
     const t = state.clock.getElapsedTime();
     
-    // Group instances by geometry type
     const instanceGroups = Array(geometries.length).fill(null).map(() => []);
     instanceData.forEach(data => instanceGroups[data.geometryIndex].push(data));
 
-    // Update matrices for each group
     instanceGroups.forEach((group, geoIndex) => {
       if (!meshRefs.current[geoIndex]) return;
 
@@ -72,13 +85,14 @@ const BackgroundInstances = ({ count = 500 }) => {
         dummy.updateMatrix();
         meshRefs.current[geoIndex].setMatrixAt(i, dummy.matrix);
       });
-      meshRefs.current[geoIndex].instanceMatrix.needsUpdate = true;
+      if (meshRefs.current[geoIndex].instanceMatrix) {
+          meshRefs.current[geoIndex].instanceMatrix.needsUpdate = true;
+      }
     });
   });
 
-  const material = <meshStandardMaterial color="#3b82f6" emissive="#3b82f6" emissiveIntensity={0.8} metalness={0.9} roughness={0.1} />;
+  const material = <meshStandardMaterial color={ACCENT_COLOR} emissive={ACCENT_COLOR} emissiveIntensity={0.5} metalness={0.9} roughness={0.1} />;
 
-  // Render an InstancedMesh for each geometry type
   return (
     <group position={[0, 0, 0]}>
       {geometries.map((geo, index) => (
@@ -97,15 +111,12 @@ const BackgroundInstances = ({ count = 500 }) => {
 
 // Custom Model Loader Component (Using GLB)
 const CustomRoverModel = () => {
-  // Use useGLTF to load the model placed in the public folder
+  // Path points to the file in the public folder
   const { scene } = useGLTF('/rover_model.glb'); 
   const modelRef = useRef();
   
-  // Apply shadows and scale
   useEffect(() => {
     if (scene) {
-        console.log("rover_model.glb loaded successfully.");
-        // Traverse and enable shadows for all meshes in the scene
         scene.traverse((child) => {
             if (child.isMesh) {
                 child.castShadow = true;
@@ -116,13 +127,11 @@ const CustomRoverModel = () => {
   }, [scene]);
   
   useFrame(() => {
-    // Optional: Add subtle rotation to the loaded scene
     if(modelRef.current) {
         modelRef.current.rotation.y += 0.005; 
     }
   });
 
-  // Primitive loads the entire scene graph from the GLB file
   return (
     // Lower position to sit on the shadow plane
     <primitive object={scene} scale={1.5} ref={modelRef} position={[0, -0.7, 0]} /> 
@@ -140,22 +149,21 @@ const GenericCADModel = ({ color }) => (
 );
 
 // Scene Manager - Now uses the Instanced Mesh
-const BackgroundScene = ({ currentSection }) => {
+const BackgroundScene = () => {
   const groupRef = useRef();
   useFrame((state) => {
     if (!groupRef.current) return;
     const t = state.clock.getElapsedTime();
-    groupRef.current.rotation.y = t * 0.02; // Slower rotation
+    groupRef.current.rotation.y = t * 0.02; 
   });
 
   return (
     <group ref={groupRef}>
-      {/* Optimized instances of various shapes */}
       <BackgroundInstances />
       <Float speed={2} rotationIntensity={0.5} floatIntensity={0.5}>
         <mesh position={[0, 0, -10]} castShadow>
           <sphereGeometry args={[0.5, 16, 16]} />
-          <meshStandardMaterial color="#3b82f6" emissive="#3b82f6" emissiveIntensity={5} />
+          <meshStandardMaterial color={ACCENT_COLOR} emissive={ACCENT_COLOR} emissiveIntensity={5} />
         </mesh>
       </Float>
     </group>
@@ -165,7 +173,6 @@ const BackgroundScene = ({ currentSection }) => {
 // Simple text loader for 3D environment
 const TextLoader = () => (
   <mesh>
-    {/* Minimal geometry to act as the base for the text */}
     <boxGeometry args={[0, 0, 0]} />
     <meshBasicMaterial color="white" transparent opacity={0} />
     <Text 
@@ -183,7 +190,7 @@ const TextLoader = () => (
 
 // --- UI COMPONENTS ---
 
-const Navbar = ({ activeSection, scrollToSection, mobileMenuOpen, setMobileMenuOpen }) => {
+const Navbar = ({ activeSection, scrollToSection }) => {
   const navItems = [
     { id: 'hero', label: 'Home' },
     { id: 'profile', label: 'Profile' },
@@ -193,12 +200,12 @@ const Navbar = ({ activeSection, scrollToSection, mobileMenuOpen, setMobileMenuO
   ];
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-md border-b border-white/10">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-transparent backdrop-blur-sm border-b border-white/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-2 font-bold text-xl tracking-tighter text-white">
-            <Cog className={`w-6 h-6 text-blue-500 ${activeSection === 'hero' ? 'animate-spin-slow' : ''}`} />
-            <span>MECH<span className="text-blue-500">.FOLIO</span></span>
+            <Cog className={`w-6 h-6 text-cyan-400 ${activeSection === 'hero' ? 'animate-spin-slow' : ''}`} />
+            <span>MECH<span className="text-cyan-400">.FOLIO</span></span>
           </div>
           <div className="hidden md:block">
             <div className="ml-10 flex items-baseline space-x-4">
@@ -206,44 +213,29 @@ const Navbar = ({ activeSection, scrollToSection, mobileMenuOpen, setMobileMenuO
                 <button
                   key={item.id}
                   onClick={() => scrollToSection(item.id)}
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-300 ${
-                    activeSection === item.id ? 'text-blue-500 bg-white/5' : 'text-gray-300 hover:text-white'
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-300 relative ${
+                    activeSection === item.id ? 'text-cyan-400' : 'text-zinc-400 hover:text-white'
                   }`}
                 >
                   {item.label}
+                  {activeSection === item.id && (
+                     <motion.span 
+                        layoutId="underline" 
+                        className="absolute bottom-0 left-0 right-0 h-[2px] bg-cyan-400 rounded-t-full" 
+                     />
+                  )}
                 </button>
               ))}
             </div>
           </div>
+          {/* Removed mobile menu for simplicity in the redesign, but button remains */}
           <div className="md:hidden">
-            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-gray-300 hover:text-white p-2">
-              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            <button className="text-zinc-400 hover:text-white p-2">
+              <Menu size={24} />
             </button>
           </div>
         </div>
       </div>
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden bg-zinc-900 border-b border-white/10 overflow-hidden"
-          >
-            <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-              {navItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => { scrollToSection(item.id); setMobileMenuOpen(false); }}
-                  className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white"
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </nav>
   );
 };
@@ -256,9 +248,9 @@ const ProjectModal = ({ project, onClose }) => {
       initial={{ opacity: 0 }} 
       animate={{ opacity: 1 }} 
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/95 backdrop-blur-sm"
     >
-      <div className="relative w-full max-w-6xl h-[85vh] bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden flex flex-col md:flex-row shadow-2xl shadow-blue-900/20">
+      <div className="relative w-full max-w-7xl h-[85vh] bg-[#121822] border border-cyan-400/20 rounded-2xl overflow-hidden flex flex-col md:flex-row shadow-2xl shadow-cyan-900/40">
         <button 
           onClick={onClose}
           className="absolute top-4 right-4 z-10 p-2 bg-black/50 text-white rounded-full hover:bg-red-500/80 transition-colors"
@@ -267,22 +259,18 @@ const ProjectModal = ({ project, onClose }) => {
         </button>
 
         {/* Left: Interactive 3D View */}
-        {/* Enable shadows in Canvas */}
         <div className="w-full md:w-2/3 h-1/2 md:h-full bg-black relative">
-          <div className="absolute top-4 left-4 z-10 px-3 py-1 bg-black/60 text-blue-400 text-xs font-mono border border-blue-500/30 rounded">
-            INTERACTIVE 3D PREVIEW - DRAG TO ROTATE
+          <div className="absolute top-4 left-4 z-10 px-3 py-1 bg-black/60 text-cyan-400 text-xs font-mono border border-cyan-500/30 rounded">
+            INTERACTIVE 3D PREVIEW
           </div>
           <Canvas shadows>
             <Suspense fallback={
               <TextLoader /> 
             }>
-              {/* Camera settings */}
               <PerspectiveCamera makeDefault position={[4, 3, 5]} />
               <OrbitControls enablePan={false} autoRotate autoRotateSpeed={1} />
               
-              {/* Lighting and Environment */}
               <ambientLight intensity={0.6} />
-              {/* Directional light to cast clear shadows */}
               <directionalLight 
                 position={[10, 10, 10]} 
                 intensity={1} 
@@ -305,14 +293,13 @@ const ProjectModal = ({ project, onClose }) => {
                 )}
               </Float>
               
-              {/* Accumulative Shadows for soft ambient occlusion/ground shadow */}
               <AccumulativeShadows 
                   frames={100} 
                   alphaTest={0.85} 
                   scale={10} 
                   rotation={[Math.PI / 2, 0, 0]} 
-                  position={[0, -0.7, 0]} // Positioned below the model
-                  color="#3b82f6" // Shadow color matching the theme
+                  position={[0, -0.7, 0]} 
+                  color={ACCENT_COLOR} 
                   opacity={0.5}
               >
                   <RandomizedLight amount={8} radius={5} ambient={0.5} intensity={1} position={[5, 5, -10]} bias={0.001} />
@@ -322,8 +309,8 @@ const ProjectModal = ({ project, onClose }) => {
           </Canvas>
         </div>
         {/* Right: Details */}
-        <div className="w-full md:w-1/3 h-1/2 md:h-full overflow-y-auto p-8 bg-zinc-900 border-l border-white/5">
-          <div className={`inline-block p-3 rounded-lg bg-${project.color}-500/10 mb-6`}>
+        <div className="w-full md:w-1/3 h-1/2 md:h-full overflow-y-auto p-8 bg-[#1f2937]/50 border-l border-white/5">
+          <div className={`p-4 rounded-xl mb-6 bg-cyan-400/10 text-cyan-400 inline-block`}>
             {project.icon}
           </div>
           
@@ -331,39 +318,46 @@ const ProjectModal = ({ project, onClose }) => {
           <p className="text-zinc-500 text-sm mb-6 font-mono">{project.date || "Fall 2024"}</p>
           
           <div className="prose prose-invert prose-sm mb-8 text-zinc-300">
-            <p>{project.fullDescription || project.description}</p>
+            <p className="border-l-4 border-cyan-600 pl-4">{project.fullDescription || project.description}</p>
           </div>
 
           <div className="mb-8">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3">Tech Stack</h3>
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3 border-b border-cyan-400/20 pb-1">Tech Stack</h3>
             <div className="flex flex-wrap gap-2">
               {project.tags.map(tag => (
-                <span key={tag} className="px-2 py-1 text-xs rounded-md bg-white/5 text-blue-300 border border-blue-500/20">
+                <span key={tag} className="px-2 py-1 text-xs rounded-full bg-cyan-400/10 text-cyan-300 border border-cyan-500/20">
                   {tag}
                 </span>
               ))}
             </div>
           </div>
 
-          {/* Gallery Placeholder */}
           <div className="mb-8">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3">Gallery</h3>
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3 border-b border-cyan-400/20 pb-1">Gallery</h3>
             <div className="grid grid-cols-2 gap-2">
                {[1,2,3,4].map(i => (
-                 <div key={i} className="aspect-square bg-zinc-800 rounded hover:bg-zinc-700 transition-colors flex items-center justify-center text-zinc-600 text-xs">
-                   Img {i}
+                 <div key={i} className="aspect-square bg-zinc-700/50 rounded hover:bg-zinc-600 transition-colors flex items-center justify-center text-zinc-500 text-xs border border-dashed border-cyan-400/10">
+                   Image Placeholder {i}
                  </div>
                ))}
             </div>
           </div>
 
-          <div className="flex gap-4">
-             <button className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2">
-                <Download size={16} /> Download Report
-             </button>
-             <button className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold text-sm transition-all border border-white/10">
-                View Source
-             </button>
+          <div className="flex gap-4 pt-4 border-t border-white/5">
+             <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-cyan-700/30"
+             >
+                <Download size={16} /> Technical Report
+             </motion.button>
+             <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="flex-1 py-3 bg-transparent hover:bg-zinc-700 text-cyan-400 rounded-lg font-bold text-sm transition-all border border-cyan-400/50 flex items-center justify-center gap-2"
+             >
+                <GitBranch size={16} /> GitHub Source
+             </motion.button>
           </div>
         </div>
       </div>
@@ -371,21 +365,49 @@ const ProjectModal = ({ project, onClose }) => {
   );
 };
 
+// Skill Bar component using Framer Motion for animation
+const SkillBar = ({ name, level, tools }) => {
+    return (
+        <motion.div 
+            className="p-4 bg-zinc-800/60 rounded-xl border border-white/5 hover:border-cyan-500/50 transition-all cursor-default"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: 0.5 }}
+        >
+            <div className="flex justify-between items-center mb-2">
+                <span className="font-bold text-white text-lg">{name}</span>
+                <span className="text-cyan-400 font-mono text-sm">{level}%</span>
+            </div>
+            <p className="text-zinc-500 text-xs mb-3">{tools}</p>
+            <div className="h-2 bg-zinc-700 rounded-full overflow-hidden">
+                <motion.div 
+                    initial={{ width: 0 }}
+                    whileInView={{ width: `${level}%` }}
+                    viewport={{ once: true, amount: 0.5 }}
+                    transition={{ duration: 1, ease: "easeOut" }}
+                    className="h-full bg-gradient-to-r from-cyan-500 to-teal-400"
+                />
+            </div>
+        </motion.div>
+    );
+};
+
 // --- MAIN APP COMPONENT ---
 
 export default function App() {
   const [activeSection, setActiveSection] = useState('hero');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
+  const sectionsRef = useRef({});
 
   useEffect(() => {
     const handleScroll = () => {
       const sections = ['hero', 'profile', 'projects', 'skills', 'contact'];
       const current = sections.find(section => {
-        const element = document.getElementById(section);
+        const element = sectionsRef.current[section];
         if (element) {
           const rect = element.getBoundingClientRect();
-          return rect.top <= 150 && rect.bottom >= 150;
+          return rect.top <= window.innerHeight / 3 && rect.bottom >= window.innerHeight / 3;
         }
         return false;
       });
@@ -396,10 +418,9 @@ export default function App() {
   }, []);
 
   const scrollToSection = (id) => {
-    const element = document.getElementById(id);
+    const element = sectionsRef.current[id];
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' });
-      setActiveSection(id);
     }
   };
 
@@ -407,122 +428,123 @@ export default function App() {
     {
       id: "rover",
       title: "3D Printed Rover for EFX",
-      description: "A fully functional modular rover chassis designed for the EFX planetary exploration challenge. Features a custom suspension system and 3D printed modular wheels.",
+      description: "A functional modular rover chassis designed for the EFX planetary exploration challenge, emphasizing 3D printability and custom suspension.",
       fullDescription: "This project involved the complete design lifecycle of a planetary rover prototype. I used Fusion 360 for the chassis design, focusing on printability and structural integrity using PLA+ and PETG filaments. The rover utilizes a rocker-bogie suspension system adapted for 3D printing to navigate rough terrain. The wheels are a compliant mechanism design to absorb shock without pneumatic tires.",
-      tags: ["Fusion 360", "3D Printing", "Arduino", "C++"],
-      icon: <Cpu className="text-red-500" size={24} />,
+      tags: ["Fusion 360", "3D Printing", "Arduino", "Rocker-Bogie"],
+      icon: <Cpu size={24} />,
       color: "red",
       colorStr: "#ef4444"
     },
     {
       id: "fea",
       title: "Cycloidal Gearbox FEA",
-      description: "Finite Element Analysis of a high-reduction cycloidal drive used in robotic joints. Optimized for weight reduction while maintaining stress safety factors.",
-      fullDescription: "Performed static structural analysis to identify stress concentrations under maximum torque loads. Topology optimization was applied to the housing to reduce mass by 22% while maintaining a Factor of Safety of 2.5.",
-      tags: ["SolidWorks", "ANSYS", "Matlab"],
-      icon: <Cog className="text-orange-500" size={24} />,
+      description: "Finite Element Analysis of a high-reduction cycloidal drive used in robotic joints, optimized for weight reduction and stress safety factors.",
+      fullDescription: "Performed static structural analysis to identify stress concentrations under maximum torque loads. Topology optimization was applied to the housing to reduce mass by 22% while maintaining a Factor of Safety of 2.5. This project highlights proficiency in advanced simulation techniques.",
+      tags: ["SolidWorks", "ANSYS", "Matlab", "Optimization"],
+      icon: <Cog size={24} />,
       color: "orange",
       colorStr: "#f97316"
     },
     {
       id: "cfd",
       title: "Drone Aerodynamics CFD",
-      description: "Computational Fluid Dynamics simulation of propeller thrust and body drag for a custom quadcopter frame. Analyzed turbulence models to improve battery efficiency.",
-      fullDescription: "Simulated airflow over the drone fuselage using OpenFOAM. The analysis led to a fuselage redesign that reduced drag by 14% at cruising speeds.",
-      tags: ["OpenFOAM", "Fusion 360", "Python"],
-      icon: <Wind className="text-blue-500" size={24} />,
+      description: "Computational Fluid Dynamics simulation of propeller thrust and body drag for a custom quadcopter frame, aiming to improve battery efficiency.",
+      fullDescription: "Simulated airflow over the drone fuselage using OpenFOAM. The analysis led to a fuselage redesign that reduced drag by 14% at cruising speeds, demonstrating a deep understanding of fluid dynamics and optimization.",
+      tags: ["OpenFOAM", "CFD", "Aerodynamics", "Python"],
+      icon: <Wind size={24} />,
       color: "blue",
       colorStr: "#3b82f6"
     },
     {
       id: "suspension",
-      title: "Suspension System Optimization",
-      description: "Multi-body dynamic simulation of a double wishbone suspension. Optimized damper coefficients for off-road terrain handling.",
-      fullDescription: "Created a mathematical model of a quarter-car suspension and ran simulations in MATLAB Simulink to tune the damping ratios for critical damping response.",
-      tags: ["ADAMS", "Simulink", "Vehicle Dynamics"],
-      icon: <Layers className="text-purple-500" size={24} />,
+      title: "Vehicle Dynamics Simulation",
+      description: "Multi-body dynamic simulation of a double wishbone suspension, optimizing damper coefficients for off-road terrain handling.",
+      fullDescription: "Created a mathematical model of a quarter-car suspension and ran simulations in MATLAB Simulink to tune the damping ratios for critical damping response. This confirms expertise in dynamic system modeling and control.",
+      tags: ["ADAMS", "Simulink", "Vehicle Dynamics", "MATLAB"],
+      icon: <Layers size={24} />,
       color: "purple",
       colorStr: "#a855f7"
     }
   ];
 
   const skills = [
-    { name: "CAD Design", level: 95, tools: "SolidWorks, Fusion 360, CATIA" },
-    { name: "CFD & FEA Simulation", level: 85, tools: "ANSYS, COMSOL, OpenFOAM" },
-    { name: "Programming", level: 80, tools: "Python, MATLAB, C++, React" },
-    { name: "Robotics", level: 90, tools: "ROS, Arduino, PLC" }
+    { name: "CAD Design & Modeling", level: 95, tools: "SolidWorks, Fusion 360, CATIA" },
+    { name: "FEA & CFD Simulation", level: 85, tools: "ANSYS, COMSOL, OpenFOAM" },
+    { name: "Robotics & Controls", level: 90, tools: "ROS, Arduino, PLC, PID" },
+    { name: "Programming & Analysis", level: 80, tools: "Python, MATLAB, C++, Git" }
+  ];
+
+  const statItems = [
+    { label: "Design Projects", val: "15+", icon: <Target size={24} className="text-cyan-400" /> },
+    { label: "Simulation Hours", val: "500+", icon: <FlaskConical size={24} className="text-cyan-400" /> },
+    { label: "Robotics Lead", val: "2 Years", icon: <Zap size={24} className="text-cyan-400" /> },
+    { label: "Code Repositories", val: "20+", icon: <GitBranch size={24} className="text-cyan-400" /> }
   ];
 
   return (
-    // Updated background to zinc-900 (slightly lighter)
-    <div className="bg-zinc-900 text-zinc-100 min-h-screen font-sans selection:bg-blue-500/30">
+    <div className="bg-[#0D1117] text-zinc-100 min-h-screen font-sans selection:bg-cyan-500/30">
       {/* Background 3D Scene */}
       <div className="fixed inset-0 z-0 pointer-events-auto">
         <Canvas shadows dpr={[1, 2]}>
           <Suspense fallback={null}>
             <PerspectiveCamera makeDefault position={[0, 0, 10]} fov={45} />
-            {/* Updated Canvas background color */}
-            <color attach="background" args={['#18181b']} /> 
+            <color attach="background" args={[BACKGROUND_COLOR]} /> 
             <ambientLight intensity={0.5} />
-            <pointLight position={[-10, -10, -10]} intensity={0.5} color="#3b82f6" />
-            <BackgroundScene activeSection={activeSection} />
+            <pointLight position={[-10, -10, -10]} intensity={0.5} color={ACCENT_COLOR} />
+            <BackgroundScene />
             <Stars radius={100} depth={50} count={3000} factor={4} saturation={0} fade speed={1} />
             <Environment preset="city" />
           </Suspense>
         </Canvas>
-        <div className="absolute inset-0 pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
-        <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-zinc-900/90 via-zinc-900/40 to-zinc-900/90"></div>
+        <div className="absolute inset-0 pointer-events-none opacity-10 bg-repeat bg-[size:20px_20px] [background-image:radial-gradient(ellipse_at_top,_#00FFFF40_1px,_transparent_1px)]"></div>
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#0D1117]/90 via-[#0D1117]/30 to-[#0D1117]/90"></div>
       </div>
 
       <Navbar 
         activeSection={activeSection} 
         scrollToSection={scrollToSection}
-        mobileMenuOpen={mobileMenuOpen}
-        setMobileMenuOpen={setMobileMenuOpen}
       />
 
-      <main className="relative z-10">
+      <main className="relative z-10 pt-16">
         
         {/* HERO SECTION */}
-        <section id="hero" className="min-h-screen flex flex-col justify-center px-4 sm:px-6 lg:px-8 pt-20">
-          <div className="max-w-4xl mx-auto w-full">
+        <section id="hero" ref={el => sectionsRef.current.hero = el} className="min-h-screen flex flex-col justify-center px-4 sm:px-6 lg:px-8">
+          <div className="max-w-6xl mx-auto w-full">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8 }}
             >
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm font-medium mb-6">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-sm font-mono mb-8 shadow-md shadow-cyan-900/40">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
                 </span>
-                Available for Spring 2025
+                DESIGN_V5.0: Spring 2025 Availability
               </div>
-              <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-white mb-6">
-                Designed for <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-emerald-500">
-                  Performance.
-                </span>
+              <h1 className="text-6xl md:text-8xl font-extrabold tracking-tight text-white mb-6">
+                ENGINEER. <br />
+                BUILD. <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-teal-400">SIMULATE.</span>
               </h1>
-              <p className="text-xl text-zinc-400 max-w-2xl mb-8 leading-relaxed">
-                Mechanical Engineering Portfolio specializing in Robotics, Additive Manufacturing, and Computational Simulation.
+              <p className="text-2xl text-zinc-400 max-w-3xl mb-10 leading-relaxed font-light">
+                Mechanical Engineering student specializing in **Computational Design**, Robotics, and high-precision Additive Manufacturing.
               </p>
               <div className="flex flex-wrap gap-4">
-                <motion.button 
-                  onClick={() => scrollToSection('profile')} 
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20"
-                >
-                   See Profile <User size={20} />
-                </motion.button>
                 <motion.button 
                   onClick={() => scrollToSection('projects')} 
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-8 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold transition-all border border-zinc-700"
+                  className="px-8 py-4 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-bold text-lg transition-all flex items-center gap-3 shadow-xl shadow-cyan-600/30 border border-cyan-500/50"
                 >
-                   View Projects
+                   View Projects <Layers size={20} />
+                </motion.button>
+                <motion.button 
+                  onClick={() => scrollToSection('contact')} 
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-8 py-4 bg-transparent hover:bg-zinc-800 text-cyan-400 rounded-lg font-bold text-lg transition-all border border-zinc-700 flex items-center gap-3"
+                >
+                   Get In Touch <Mail size={20} />
                 </motion.button>
               </div>
             </motion.div>
@@ -530,69 +552,106 @@ export default function App() {
         </section>
 
         {/* PROFILE / SUMMARY SECTION */}
-        <section id="profile" className="py-20 px-4 sm:px-6 lg:px-8 bg-zinc-900/30 backdrop-blur-sm border-y border-white/5">
-          <div className="max-w-6xl mx-auto">
-            <div className="flex flex-col md:flex-row items-center gap-12">
-               <div className="w-full md:w-1/3">
-                 <div className="aspect-[3/4] rounded-2xl bg-zinc-800 border border-white/10 relative overflow-hidden group">
-                    {/* Placeholder for Headshot */}
-                    <div className="absolute inset-0 flex items-center justify-center bg-zinc-800 text-zinc-600">
-                       <User size={64} />
-                       <span className="absolute bottom-4 text-xs uppercase tracking-widest">Add Headshot Here</span>
-                    </div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-60"></div>
-                    <div className="absolute bottom-0 left-0 p-6">
-                       <h3 className="text-2xl font-bold text-white">John Doe</h3>
-                       <p className="text-blue-400 font-mono">Mechanical Engineer</p>
-                    </div>
-                 </div>
+        <section id="profile" ref={el => sectionsRef.current.profile = el} className="py-24 px-4 sm:px-6 lg:px-8 border-y border-white/5 bg-[#0D1117]">
+          <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-12">
+            
+            {/* Left Column: Stats */}
+            <div className="md:col-span-1 space-y-6">
+              <h2 className="text-3xl font-bold mb-4 text-cyan-400">Professional Summary</h2>
+              <p className="text-zinc-400 leading-relaxed border-l-4 border-cyan-600 pl-4 mb-8">
+                I am a driven final-year student dedicated to robust design and advanced computational analysis. My strength lies in transforming complex engineering problems into optimized, manufacturable solutions.
+              </p>
+              
+              <div className="space-y-4">
+                {statItems.map((stat, i) => (
+                    <motion.div 
+                        key={i} 
+                        initial={{ opacity: 0, x: -20 }}
+                        whileInView={{ opacity: 1, x: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ delay: i * 0.1, duration: 0.5 }}
+                        className="p-4 bg-zinc-800/50 rounded-lg flex items-center gap-4 border border-zinc-700/50 hover:border-cyan-500/50 transition-colors"
+                    >
+                        {stat.icon}
+                        <div>
+                            <div className="text-xl font-bold text-white">{stat.val}</div>
+                            <div className="text-xs text-zinc-500 uppercase tracking-widest">{stat.label}</div>
+                        </div>
+                    </motion.div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right Column: Details */}
+            <div className="md:col-span-2">
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                 {/* Education */}
+                 <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.2 }}
+                    className="p-8 bg-[#1f2937]/50 border border-cyan-400/20 rounded-xl shadow-lg shadow-black/20"
+                 >
+                    <h3 className="text-xl font-bold text-white mb-2">B.S. Mechanical Engineering</h3>
+                    <p className="text-cyan-400 font-mono mb-2">University of Technology</p>
+                    <p className="text-zinc-500 text-sm">Graduation: May 2025 | GPA: 3.8/4.0</p>
+                    <p className="text-zinc-500 text-sm mt-2">Relevant coursework: Advanced Thermodynamics, System Dynamics, Robotics, Materials Science.</p>
+                 </motion.div>
+                 {/* Experience Placeholder */}
+                 <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.3 }}
+                    className="p-8 bg-[#1f2937]/50 border border-cyan-400/20 rounded-xl shadow-lg shadow-black/20"
+                 >
+                    <h3 className="text-xl font-bold text-white mb-2">Robotics Design Intern</h3>
+                    <p className="text-cyan-400 font-mono mb-2">Innovation Labs</p>
+                    <p className="text-zinc-500 text-sm">Summer 2024</p>
+                    <p className="text-zinc-500 text-sm mt-2">Assisted in the development of a collaborative arm, focusing on end-effector mechanics and safety protocols.</p>
+                 </motion.div>
                </div>
-               <div className="w-full md:w-2/3">
-                  <h2 className="text-3xl font-bold mb-6 flex items-center gap-2">
-                     <span className="w-8 h-1 bg-blue-500 rounded-full"></span>
-                     About Me
-                  </h2>
-                  <p className="text-lg text-zinc-300 leading-relaxed mb-6">
-                     I am a final-year Mechanical Engineering student with a passion for bridging the gap between digital simulation and physical manufacturing. 
-                  </p>
-                  <p className="text-zinc-400 leading-relaxed mb-8">
-                     My experience spans from designing complex mechanisms in SolidWorks to verifying their integrity using ANSYS FEA. I have hands-on experience with rapid prototyping (3D printing, CNC) and have successfully led technical teams in university rover competitions. I am looking for a challenging role where I can apply my skills in product design and robotics.
-                  </p>
-                  
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                     {[
-                        { label: "Experience", val: "2 Years" },
-                        { label: "Projects", val: "15+" },
-                        { label: "GPA", val: "3.8/4.0" },
-                        { label: "Location", val: "Remote/Hybrid" }
-                     ].map((stat, i) => (
-                        <motion.div 
-                            key={i} 
-                            initial={{ opacity: 0, x: -10 }}
-                            whileInView={{ opacity: 1, x: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ delay: i * 0.1 + 0.5, duration: 0.5 }}
-                            className="p-4 bg-white/5 rounded-lg border border-white/5 hover:border-blue-500/50 transition-colors"
-                        >
-                           <div className="text-2xl font-bold text-white mb-1">{stat.val}</div>
-                           <div className="text-xs text-zinc-500 uppercase tracking-wider">{stat.label}</div>
-                        </motion.div>
-                     ))}
-                  </div>
+               
+               {/* Certifications and Links */}
+               <div className="mt-8">
+                   <h3 className="text-lg font-bold text-white mb-4 border-b border-zinc-700/50 pb-2">Certifications & Credentials</h3>
+                   <div className="flex flex-wrap gap-4">
+                       <span className="px-4 py-2 bg-zinc-800/60 text-cyan-300 rounded-full text-sm border border-cyan-500/20">CSWP - SolidWorks Professional</span>
+                       <span className="px-4 py-2 bg-zinc-800/60 text-cyan-300 rounded-full text-sm border border-cyan-500/20">Certified ANSYS Associate</span>
+                       <a href="#" className="px-4 py-2 bg-zinc-800/60 text-cyan-300 rounded-full text-sm border border-cyan-500/20 hover:bg-cyan-500/10 transition-colors flex items-center gap-2">
+                           View Resume <Download size={16} />
+                       </a>
+                   </div>
                </div>
             </div>
           </div>
         </section>
 
+        {/* SKILLS SECTION */}
+        <section id="skills" ref={el => sectionsRef.current.skills = el} className="py-24 px-4 sm:px-6 lg:px-8 bg-[#0D1117] border-b border-white/5">
+           <div className="max-w-7xl mx-auto">
+              <h2 className="text-4xl font-extrabold mb-12 flex items-center gap-3 text-white">
+                 <Wrench className="text-cyan-400" size={32} />
+                 The Technical Arsenal
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {skills.map((skill, index) => (
+                    <SkillBar key={index} {...skill} />
+                  ))}
+              </div>
+           </div>
+        </section>
+
         {/* PROJECTS SECTION */}
-        <section id="projects" className="py-20 px-4 sm:px-6 lg:px-8">
+        <section id="projects" ref={el => sectionsRef.current.projects = el} className="py-24 px-4 sm:px-6 lg:px-8 bg-[#0D1117]">
           <div className="max-w-7xl mx-auto">
              <div className="mb-12">
-                <h2 className="text-4xl font-bold mb-4">Featured Projects</h2>
-                <p className="text-zinc-400 max-w-xl">Click on any project card to view the interactive 3D model, full technical details, and gallery.</p>
+                <h2 className="text-4xl font-extrabold mb-4 text-white">Engineering Portfolio</h2>
+                <p className="text-zinc-400 max-w-xl">Interactive simulations and detailed technical summaries of my core projects in design and analysis.</p>
              </div>
 
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                {projects.map((project, index) => (
                  <motion.div
                    key={index}
@@ -601,129 +660,64 @@ export default function App() {
                    viewport={{ once: true }}
                    transition={{ delay: index * 0.1 }}
                    onClick={() => setSelectedProject(project)}
-                   whileHover={{ y: -5, boxShadow: "0 10px 15px -3px rgba(59, 130, 246, 0.3)" }} // Interactive Lift
-                   className="group cursor-pointer bg-zinc-900/50 border border-white/10 rounded-2xl overflow-hidden hover:border-blue-500/50 transition-all duration-300"
+                   whileHover={{ y: -8, boxShadow: "0 15px 30px -10px rgba(0, 255, 255, 0.3)" }} 
+                   className="group cursor-pointer bg-[#1f2937]/50 border border-zinc-700/50 rounded-xl overflow-hidden hover:border-cyan-500 transition-all duration-300 relative p-6"
                  >
-                   {/* Header Simulation */}
-                   <div className="bg-black/40 p-3 flex justify-between items-center border-b border-white/5">
-                      <div className="flex items-center gap-2 text-xs font-mono text-zinc-500">
-                         <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50"></div>
-                         <span>{project.id.toUpperCase()}_V04.STEP</span>
-                      </div>
-                      <Maximize2 size={14} className="text-zinc-600 group-hover:text-blue-400" />
-                   </div>
+                    {/* Floating Accent Border */}
+                    <div className="absolute inset-0 border-4 border-transparent rounded-xl pointer-events-none group-hover:border-cyan-500/50 transition-all duration-500 animate-pulse-slow"></div>
+
+                    <div className="mb-4 text-cyan-400">
+                         {project.icon}
+                    </div>
                    
-                   <div className="p-8">
-                      <div className="flex justify-between items-start mb-6">
-                         <div className={`p-4 rounded-xl bg-${project.color}-500/10`}>
-                            {project.icon}
-                         </div>
-                      </div>
-                      <h3 className="text-2xl font-bold text-white mb-3 group-hover:text-blue-400 transition-colors">{project.title}</h3>
-                      <p className="text-zinc-400 text-sm mb-6 line-clamp-3">{project.description}</p>
-                      <div className="flex flex-wrap gap-2">
-                         {project.tags.map(tag => (
-                            <span key={tag} className="px-2 py-1 text-xs rounded bg-white/5 text-zinc-400">{tag}</span>
-                         ))}
-                      </div>
-                   </div>
-                   <div className="h-1 w-full bg-gradient-to-r from-transparent via-blue-500/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <h3 className="text-xl font-bold text-white mb-2 group-hover:text-cyan-400 transition-colors">{project.title}</h3>
+                    <p className="text-zinc-400 text-sm mb-4 line-clamp-3">{project.description}</p>
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-zinc-700/50">
+                       {project.tags.slice(0, 3).map(tag => (
+                          <span key={tag} className="px-3 py-1 text-xs rounded-full bg-cyan-400/10 text-cyan-300 font-mono">{tag}</span>
+                       ))}
+                    </div>
                  </motion.div>
                ))}
              </div>
           </div>
         </section>
 
-        {/* SKILLS SECTION (Revised) */}
-        <section id="skills" className="py-20 px-4 sm:px-6 lg:px-8 bg-zinc-900/30">
-           <div className="max-w-4xl mx-auto">
-              <h2 className="text-3xl font-bold mb-12 flex items-center gap-3">
-                 <Wrench className="text-blue-500" />
-                 Technical Arsenal
-              </h2>
-              <div className="space-y-8">
-                  {skills.map((skill) => (
-                    <div key={skill.name}>
-                      <div className="flex justify-between mb-2">
-                        <span className="font-bold text-zinc-200">{skill.name}</span>
-                        <span className="text-zinc-500 text-sm">{skill.tools}</span>
-                      </div>
-                      <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-                        {/* Scroll-triggered animation for skill bars */}
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          whileInView={{ width: `${skill.level}%` }}
-                          viewport={{ once: true, amount: 0.5 }} // Trigger when 50% visible
-                          transition={{ duration: 1 }}
-                          className="h-full bg-gradient-to-r from-blue-600 to-emerald-500"
-                        />
-                      </div>
-                    </div>
-                  ))}
-              </div>
-              
-              <div className="mt-16 grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <motion.div 
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.1 }}
-                    className="p-6 bg-zinc-900/80 border border-white/10 rounded-xl hover:border-blue-500/50 transition-colors"
-                 >
-                    <h3 className="text-lg font-bold text-white mb-2">Education</h3>
-                    <p className="text-blue-400">B.S. Mechanical Engineering</p>
-                    <p className="text-zinc-500 text-sm">University of Tech • 2021-2025</p>
-                 </motion.div>
-                 <motion.div 
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.2 }}
-                    className="p-6 bg-zinc-900/80 border border-white/10 rounded-xl hover:border-blue-500/50 transition-colors"
-                 >
-                    <h3 className="text-lg font-bold text-white mb-2">Certifications</h3>
-                    <p className="text-zinc-300 text-sm">CSWP - Certified SolidWorks Professional</p>
-                    <p className="text-zinc-300 text-sm">Certified ANSYS Associate</p>
-                 </motion.div>
-              </div>
-           </div>
-        </section>
-
         {/* CONTACT SECTION */}
-        <section id="contact" className="py-20 px-4 sm:px-6 lg:px-8">
-           <div className="max-w-3xl mx-auto text-center">
-              <h2 className="text-4xl font-bold mb-6">Let's Build Something.</h2>
-              <p className="text-zinc-400 mb-10">
-                 I am actively seeking opportunities to apply my engineering skills. 
+        <section id="contact" ref={el => sectionsRef.current.contact = el} className="py-24 px-4 sm:px-6 lg:px-8 bg-[#1f2937]/50 border-t border-white/5">
+           <div className="max-w-4xl mx-auto text-center">
+              <h2 className="text-5xl font-extrabold mb-6 text-white">Ready for the next challenge.</h2>
+              <p className="text-zinc-400 text-xl mb-12 max-w-3xl mx-auto">
+                 I am actively seeking full-time and internship opportunities. Let's connect and discuss how my skills can contribute to your team's success.
               </p>
-              <div className="flex justify-center gap-6 mb-12">
+              <div className="flex justify-center gap-6 mb-16">
                  <motion.a 
-                    href="#" 
-                    whileHover={{ scale: 1.1, color: '#3b82f6' }}
+                    href="mailto:johndoe@email.com" 
+                    whileHover={{ scale: 1.1, backgroundColor: ACCENT_COLOR, color: BACKGROUND_COLOR }}
                     whileTap={{ scale: 0.9 }}
-                    className="p-4 bg-white/5 rounded-full hover:bg-blue-600/50 text-white transition-colors"
+                    className="p-5 bg-white/5 rounded-full text-cyan-400 border border-cyan-400/50 transition-all shadow-lg shadow-cyan-900/30"
                  >
-                    <Mail size={24} />
+                    <Mail size={28} />
                  </motion.a>
                  <motion.a 
                     href="#" 
-                    whileHover={{ scale: 1.1, color: '#3b82f6' }}
+                    whileHover={{ scale: 1.1, backgroundColor: ACCENT_COLOR, color: BACKGROUND_COLOR }}
                     whileTap={{ scale: 0.9 }}
-                    className="p-4 bg-white/5 rounded-full hover:bg-blue-600/50 text-white transition-colors"
+                    className="p-5 bg-white/5 rounded-full text-cyan-400 border border-cyan-400/50 transition-all shadow-lg shadow-cyan-900/30"
                  >
-                    <Linkedin size={24} />
+                    <Linkedin size={28} />
                  </motion.a>
                  <motion.a 
                     href="#" 
-                    whileHover={{ scale: 1.1, color: '#3b82f6' }}
+                    whileHover={{ scale: 1.1, backgroundColor: ACCENT_COLOR, color: BACKGROUND_COLOR }}
                     whileTap={{ scale: 0.9 }}
-                    className="p-4 bg-white/5 rounded-full hover:bg-blue-600/50 text-white transition-colors"
+                    className="p-5 bg-white/5 rounded-full text-cyan-400 border border-cyan-400/50 transition-all shadow-lg shadow-cyan-900/30"
                  >
-                    <Github size={24} />
+                    <Github size={28} />
                  </motion.a>
               </div>
               <footer className="text-zinc-600 text-sm">
-                 © {new Date().getFullYear()} Mech.Folio
+                 DESIGNED & BUILT IN REACT/THREE.JS • © {new Date().getFullYear()}
               </footer>
            </div>
         </section>
