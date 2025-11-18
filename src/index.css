@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background: #09090b; /* zinc-950 matches the app theme */
+  margin: 0;
+}
