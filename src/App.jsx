@@ -29,7 +29,9 @@ import {
   GitBranch,
   Target,
   FlaskConical,
-  Zap
+  Zap,
+  Menu,
+  X
 } from 'lucide-react';
 
 // --- CONFIG & UTILS ---
