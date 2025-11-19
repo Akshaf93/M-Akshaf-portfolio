@@ -9,7 +9,7 @@ import {
   useGLTF, 
   Text,
   Stars,
-  Center // Added to fix model centering
+  Center
 } from '@react-three/drei';
 import * as THREE from 'three';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -35,10 +35,10 @@ import {
   MousePointer2,
   Gauge,
   Maximize,
-  Minimize,
   Activity,
   Server,
-  Database
+  Database,
+  Layers as LayersIcon
 } from 'lucide-react';
 
 // --- THEME CONFIG ---
@@ -161,7 +161,7 @@ const MainScene = () => {
   );
 };
 
-// 3. CUSTOM GLB LOADER - FIXED CENTERING
+// 3. CUSTOM GLB LOADER - FIXED CENTERING & MATERIAL
 const CustomRoverModel = () => {
   const { scene } = useGLTF('/rover_model.glb'); 
   
@@ -171,18 +171,17 @@ const CustomRoverModel = () => {
             if (child.isMesh) {
                 child.castShadow = true;
                 child.receiveShadow = true;
+                // Use a darker, more metallic material to prevent blowout
                 child.material = new THREE.MeshStandardMaterial({ 
-                    color: '#e2e8f0', 
-                    roughness: 0.5,
-                    metalness: 0.2
+                    color: '#64748b', // Slate 500
+                    roughness: 0.6,
+                    metalness: 0.4
                 });
             }
         });
     }
   }, [scene]);
   
-  // Use <Center> to automatically center the loaded geometry at 0,0,0
-  // This fixes the "offset rotation" issue.
   return (
     <Center top>
       <primitive object={scene} scale={1.5} />
@@ -193,33 +192,39 @@ const CustomRoverModel = () => {
 const GenericCADModel = ({ color }) => (
   <Center top>
     <mesh castShadow receiveShadow>
-      {/* Changed to a Box to avoid confusion with "plates" */}
       <boxGeometry args={[1, 1, 1]} />
       <meshStandardMaterial color={color} roughness={0.3} metalness={0.8} />
     </mesh>
   </Center>
 );
 
-// 4. PROJECT SCENE COMPONENT
+// 4. PROJECT SCENE COMPONENT (FIXED LIGHTING)
 const ProjectScene = ({ project }) => {
   return (
     <>
-      <OrbitControls enablePan={true} autoRotate autoRotateSpeed={1} makeDefault />
-      <ambientLight intensity={0.7} />
-      <directionalLight position={[5, 10, 5]} intensity={1.5} castShadow />
-      <directionalLight position={[-5, 5, -5]} intensity={0.5} />
+      <OrbitControls enablePan={true} autoRotate autoRotateSpeed={0.8} makeDefault />
+      
+      {/* Reduced Ambient Light to avoid whiteout */}
+      <ambientLight intensity={0.5} />
+      
+      {/* Controlled Directional Light */}
+      <directionalLight position={[5, 8, 5]} intensity={1.2} castShadow />
+      <directionalLight position={[-5, 3, -5]} intensity={0.5} color="#0ea5e9" />
+      
+      {/* Environment: City preset but we rely on bg color to hide it */}
       <Environment preset="city" />
       
-      <Float speed={2} rotationIntensity={0.1} floatIntensity={0.2} floatingRange={[-0.1, 0.1]}>
+      <Float speed={2} rotationIntensity={0.1} floatIntensity={0.1} floatingRange={[-0.05, 0.05]}>
           {project.id === 'rover' ? <CustomRoverModel /> : <GenericCADModel color={project.colorStr} />}
       </Float>
       
+      {/* Adjusted Shadows - Darker and more subtle */}
       <ContactShadows 
-        position={[0, -0.05, 0]} // Moved closer to object
-        opacity={0.4} 
+        position={[0, -0.1, 0]} 
+        opacity={0.5} 
         scale={10} 
         blur={2.5} 
-        far={1} 
+        far={1.5} 
         color="#000000" 
       />
     </>
@@ -344,12 +349,14 @@ const ProjectModal = ({ project, onClose }) => {
          </button>
 
          {/* Left: 3D Viewport (Larger) */}
-         <div className="w-full lg:w-3/5 h-1/2 lg:h-full relative bg-gradient-to-b from-zinc-900 to-black border-b lg:border-b-0 lg:border-r border-white/10">
+         <div className="w-full lg:w-3/5 h-1/2 lg:h-full relative bg-zinc-900 border-b lg:border-b-0 lg:border-r border-white/10">
             <div className="absolute top-6 left-6 z-10 flex flex-col gap-2 pointer-events-none">
                <span className="text-xs font-mono text-sky-500 tracking-widest">INTERACTIVE_VIEWPORT</span>
                <h2 className="text-2xl font-bold text-white">{project.title}</h2>
             </div>
             <Canvas shadows camera={{ position: [4, 4, 6], fov: 45 }}>
+              {/* Fix for "Spotlight" look: Explicitly set dark background color inside Canvas */}
+              <color attach="background" args={['#09090b']} />
               <Suspense fallback={
                  <Text position={[0,0,0]} fontSize={0.5} color="white">LOADING ASSETS...</Text>
               }>
@@ -398,7 +405,7 @@ const ProjectModal = ({ project, onClose }) => {
                {/* Enhanced Gallery */}
                <div>
                   <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-                    <Layers size={14} className="text-sky-500" /> Render Gallery
+                    <LayersIcon size={14} className="text-sky-500" /> Render Gallery
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
                      {[1,2,3,4].map(i => (
