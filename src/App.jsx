@@ -8,7 +8,8 @@ import {
   OrbitControls, 
   useGLTF, 
   Text,
-  Stars
+  Stars,
+  Center // Added to fix model centering
 } from '@react-three/drei';
 import * as THREE from 'three';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -32,7 +33,12 @@ import {
   Terminal,
   ChevronRight,
   MousePointer2,
-  Gauge
+  Gauge,
+  Maximize,
+  Minimize,
+  Activity,
+  Server,
+  Database
 } from 'lucide-react';
 
 // --- THEME CONFIG ---
@@ -103,7 +109,7 @@ const TechnicalGear = ({ position, rotation, size = 1, teeth = 12, speed = 1, co
   );
 };
 
-// 2. BACKGROUND SCENE COMPONENT (Extracted for cleaner Reconciler handling)
+// 2. BACKGROUND SCENE COMPONENT
 const MainScene = () => {
   const groupRef = useRef();
 
@@ -155,10 +161,9 @@ const MainScene = () => {
   );
 };
 
-// 3. CUSTOM GLB LOADER
+// 3. CUSTOM GLB LOADER - FIXED CENTERING
 const CustomRoverModel = () => {
   const { scene } = useGLTF('/rover_model.glb'); 
-  const modelRef = useRef();
   
   useEffect(() => {
     if (scene) {
@@ -176,43 +181,46 @@ const CustomRoverModel = () => {
     }
   }, [scene]);
   
-  useFrame(() => {
-    if(modelRef.current) modelRef.current.rotation.y += 0.002; 
-  });
-
-  return <primitive object={scene} scale={1.5} ref={modelRef} position={[0, -0.7, 0]} />;
+  // Use <Center> to automatically center the loaded geometry at 0,0,0
+  // This fixes the "offset rotation" issue.
+  return (
+    <Center top>
+      <primitive object={scene} scale={1.5} />
+    </Center>
+  );
 };
 
 const GenericCADModel = ({ color }) => (
-  <group>
+  <Center top>
     <mesh castShadow receiveShadow>
-      <torusKnotGeometry args={[0.8, 0.2, 100, 16]} />
+      {/* Changed to a Box to avoid confusion with "plates" */}
+      <boxGeometry args={[1, 1, 1]} />
       <meshStandardMaterial color={color} roughness={0.3} metalness={0.8} />
     </mesh>
-  </group>
+  </Center>
 );
 
-// 4. PROJECT SCENE COMPONENT (Extracted for cleaner Reconciler handling)
+// 4. PROJECT SCENE COMPONENT
 const ProjectScene = ({ project }) => {
   return (
     <>
-      <OrbitControls enablePan={false} autoRotate autoRotateSpeed={0.5} />
+      <OrbitControls enablePan={true} autoRotate autoRotateSpeed={1} makeDefault />
       <ambientLight intensity={0.7} />
-      <directionalLight position={[10, 10, 10]} intensity={1} castShadow />
-      <Environment preset="studio" />
+      <directionalLight position={[5, 10, 5]} intensity={1.5} castShadow />
+      <directionalLight position={[-5, 5, -5]} intensity={0.5} />
+      <Environment preset="city" />
       
-      <Float speed={2} rotationIntensity={0.2} floatIntensity={0.2}>
+      <Float speed={2} rotationIntensity={0.1} floatIntensity={0.2} floatingRange={[-0.1, 0.1]}>
           {project.id === 'rover' ? <CustomRoverModel /> : <GenericCADModel color={project.colorStr} />}
       </Float>
       
-      {/* Replaced AccumulativeShadows with ContactShadows for better stability */}
       <ContactShadows 
-        position={[0, -0.8, 0]} 
-        opacity={0.5} 
+        position={[0, -0.05, 0]} // Moved closer to object
+        opacity={0.4} 
         scale={10} 
-        blur={2} 
+        blur={2.5} 
         far={1} 
-        color={THEME.accent} 
+        color="#000000" 
       />
     </>
   );
@@ -222,20 +230,20 @@ const ProjectScene = ({ project }) => {
 
 const Navbar = ({ activeSection, scrollToSection }) => {
   const navItems = [
-    { id: 'hero', label: '01 // HOME' },
-    { id: 'profile', label: '02 // PROFILE' },
-    { id: 'projects', label: '03 // PROJECTS' },
-    { id: 'contact', label: '04 // CONTACT' }
+    { id: 'hero', label: 'STATUS' },
+    { id: 'profile', label: 'PROFILE' },
+    { id: 'projects', label: 'MODULES' },
+    { id: 'contact', label: 'COMMS' }
   ];
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-zinc-950/80 backdrop-blur-md border-b border-white/5 h-16 flex items-center">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-zinc-950/90 backdrop-blur-md border-b border-white/10 h-16 flex items-center shadow-lg shadow-black/50">
       <div className="max-w-7xl w-full mx-auto px-6 flex justify-between items-center">
         <div className="flex items-center gap-3 text-white font-mono tracking-tighter cursor-pointer" onClick={() => scrollToSection('hero')}>
-           <div className="w-8 h-8 bg-sky-500/10 border border-sky-500/50 rounded flex items-center justify-center">
-              <Cog className="w-5 h-5 text-sky-500 animate-spin-slow" />
+           <div className="w-8 h-8 bg-sky-500/20 border border-sky-500 rounded flex items-center justify-center relative overflow-hidden group">
+              <Cog className="w-5 h-5 text-sky-500 animate-spin-slow group-hover:text-white transition-colors" />
            </div>
-           <span className="font-bold text-lg">MECH<span className="text-sky-500">.DEV</span></span>
+           <span className="font-bold text-lg tracking-widest">MECH<span className="text-sky-500">.OS</span></span>
         </div>
 
         <div className="hidden md:flex gap-8">
@@ -243,8 +251,8 @@ const Navbar = ({ activeSection, scrollToSection }) => {
             <button
               key={item.id}
               onClick={() => scrollToSection(item.id)}
-              className={`text-xs font-mono tracking-widest transition-all duration-300 ${
-                activeSection === item.id ? 'text-sky-500' : 'text-zinc-500 hover:text-white'
+              className={`text-xs font-mono tracking-widest transition-all duration-300 py-1 border-b-2 ${
+                activeSection === item.id ? 'text-sky-400 border-sky-400' : 'text-zinc-500 border-transparent hover:text-white'
               }`}
             >
               {item.label}
@@ -252,7 +260,7 @@ const Navbar = ({ activeSection, scrollToSection }) => {
           ))}
         </div>
 
-        <button className="md:hidden text-zinc-400">
+        <button className="md:hidden text-zinc-400 hover:text-white">
            <Menu size={24} />
         </button>
       </div>
@@ -268,91 +276,164 @@ const ProjectCard = ({ project, onClick, index }) => {
       viewport={{ once: true }}
       transition={{ delay: index * 0.1 }}
       onClick={onClick}
-      className="group relative bg-zinc-900/50 border border-white/5 rounded-lg overflow-hidden cursor-pointer hover:border-sky-500/50 transition-all duration-300"
+      className="group relative bg-zinc-900/50 border border-white/5 rounded-lg overflow-hidden cursor-pointer hover:border-sky-500/50 transition-all duration-300 h-full flex flex-col"
     >
-      <div className="h-8 bg-black/40 border-b border-white/5 flex items-center justify-between px-3">
+      <div className="h-8 bg-zinc-950 border-b border-white/5 flex items-center justify-between px-3">
         <span className="text-[10px] font-mono text-zinc-500 flex items-center gap-2">
-           <div className={`w-2 h-2 rounded-full bg-${project.color}-500`}></div>
-           {project.id.toUpperCase()}_REV03.ASM
+           <div className={`w-1.5 h-1.5 rounded-full bg-${project.color}-500 animate-pulse`}></div>
+           {project.id.toUpperCase()}.OBJ
         </span>
-        <div className="text-zinc-600 group-hover:text-sky-500 transition-colors"><MousePointer2 size={12} /></div>
+        <div className="text-zinc-700 group-hover:text-sky-500 transition-colors"><Maximize size={12} /></div>
       </div>
 
-      <div className="p-6">
-        <div className="mb-4 p-3 bg-white/5 w-fit rounded-md text-sky-500 group-hover:text-white group-hover:bg-sky-600 transition-all">
+      <div className="p-6 flex-1 flex flex-col">
+        <div className="mb-4 p-3 bg-white/5 w-fit rounded-md text-sky-500 group-hover:text-white group-hover:bg-sky-600 transition-all shadow-inner">
            {project.icon}
         </div>
         <h3 className="text-xl font-bold text-white mb-2 group-hover:text-sky-400 transition-colors">{project.title}</h3>
-        <p className="text-zinc-400 text-sm line-clamp-3 mb-4 leading-relaxed">{project.description}</p>
+        <p className="text-zinc-400 text-sm line-clamp-3 mb-4 leading-relaxed flex-1">{project.description}</p>
         
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 pt-4 border-t border-white/5">
            {project.tags.slice(0,3).map(tag => (
-             <span key={tag} className="px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-zinc-400 border border-white/10 rounded bg-black/20">
+             <span key={tag} className="px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-zinc-500 border border-white/5 rounded bg-black/40">
                {tag}
              </span>
            ))}
         </div>
       </div>
       
-      <div className="absolute inset-0 bg-gradient-to-t from-sky-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-t from-sky-900/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
     </motion.div>
   );
 }
 
+// Lightbox Component
+const Lightbox = ({ src, onClose }) => (
+  <motion.div 
+    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+    className="fixed inset-0 z-[70] bg-black/95 flex items-center justify-center p-4 backdrop-blur-xl"
+    onClick={onClose}
+  >
+    <button className="absolute top-4 right-4 text-white/50 hover:text-white p-2"><X size={32} /></button>
+    <img src={src} alt="Full view" className="max-w-full max-h-full object-contain rounded-lg shadow-2xl shadow-sky-900/20" />
+  </motion.div>
+);
+
 const ProjectModal = ({ project, onClose }) => {
+  const [lightboxImg, setLightboxImg] = useState(null);
+
   if (!project) return null;
+  
   return (
+    <>
     <motion.div 
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md"
+      initial={{ opacity: 0, scale: 0.95 }} 
+      animate={{ opacity: 1, scale: 1 }} 
+      exit={{ opacity: 0, scale: 0.95 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-8 bg-black/80 backdrop-blur-sm"
     >
-      <div className="w-full max-w-6xl h-[85vh] bg-zinc-950 border border-white/10 rounded-xl overflow-hidden flex flex-col md:flex-row shadow-2xl">
-         <div className="w-full md:w-2/3 h-1/2 md:h-full relative bg-zinc-900">
-            <div className="absolute top-4 left-4 z-10 flex gap-2">
-               <span className="px-2 py-1 bg-black/60 border border-white/10 text-[10px] text-sky-500 font-mono rounded">VIEW: ISOMETRIC</span>
-               <span className="px-2 py-1 bg-black/60 border border-white/10 text-[10px] text-zinc-500 font-mono rounded">ZOOM: 100%</span>
+      {/* Expanded Size Container */}
+      <div className="w-full max-w-7xl h-[90vh] bg-zinc-950 border border-white/10 rounded-xl overflow-hidden flex flex-col lg:flex-row shadow-2xl shadow-black relative">
+         
+         {/* Close Button */}
+         <button 
+            onClick={onClose} 
+            className="absolute top-4 right-4 z-20 p-2 bg-black/50 text-white/50 hover:text-white rounded-full border border-white/10 hover:bg-red-500/20 hover:border-red-500/50 transition-all"
+          >
+            <X size={20}/>
+         </button>
+
+         {/* Left: 3D Viewport (Larger) */}
+         <div className="w-full lg:w-3/5 h-1/2 lg:h-full relative bg-gradient-to-b from-zinc-900 to-black border-b lg:border-b-0 lg:border-r border-white/10">
+            <div className="absolute top-6 left-6 z-10 flex flex-col gap-2 pointer-events-none">
+               <span className="text-xs font-mono text-sky-500 tracking-widest">INTERACTIVE_VIEWPORT</span>
+               <h2 className="text-2xl font-bold text-white">{project.title}</h2>
             </div>
-            <Canvas shadows camera={{ position: [4, 3, 5], fov: 50 }}>
-              <Suspense fallback={null}>
+            <Canvas shadows camera={{ position: [4, 4, 6], fov: 45 }}>
+              <Suspense fallback={
+                 <Text position={[0,0,0]} fontSize={0.5} color="white">LOADING ASSETS...</Text>
+              }>
                 <ProjectScene project={project} />
               </Suspense>
             </Canvas>
-            <div className="absolute bottom-4 right-4 text-zinc-600 text-[10px] font-mono">
-               RENDER_ENGINE: THREE.JS_R154
+            
+            {/* Controls Hint */}
+            <div className="absolute bottom-6 left-6 flex items-center gap-4 text-[10px] font-mono text-zinc-500">
+               <div className="flex items-center gap-1"><MousePointer2 size={10}/> DRAG TO ROTATE</div>
+               <div className="flex items-center gap-1"><Maximize size={10}/> SCROLL TO ZOOM</div>
             </div>
          </div>
 
-         <div className="w-full md:w-1/3 h-1/2 md:h-full bg-zinc-950 border-l border-white/10 p-8 overflow-y-auto relative">
-            <button onClick={onClose} className="absolute top-4 right-4 text-zinc-500 hover:text-white"><X size={20}/></button>
+         {/* Right: Data & Gallery Panel */}
+         <div className="w-full lg:w-2/5 h-1/2 lg:h-full bg-zinc-950 p-8 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
             
             <div className="mb-8">
-               <div className="text-xs font-mono text-sky-500 mb-2">PROJECT_ID: {project.id.toUpperCase()}</div>
-               <h2 className="text-3xl font-bold text-white mb-4">{project.title}</h2>
-               <p className="text-zinc-400 text-sm leading-relaxed">{project.fullDescription || project.description}</p>
+               <div className="flex items-center gap-2 mb-4">
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-${project.color}-500/10 text-${project.color}-500 border border-${project.color}-500/20`}>
+                    Status: Complete
+                  </span>
+                  <span className="text-[10px] font-mono text-zinc-600">ID: {project.id.toUpperCase()}</span>
+               </div>
+               
+               <p className="text-zinc-300 text-sm leading-7 border-l-2 border-zinc-800 pl-4">
+                 {project.fullDescription || project.description}
+               </p>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-8">
+               {/* Tech Stack */}
                <div>
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-3 border-b border-white/10 pb-2">Technical Specifications</h3>
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <Code size={14} className="text-sky-500" /> System Architecture
+                  </h3>
                   <div className="flex flex-wrap gap-2">
                      {project.tags.map(tag => (
-                        <span key={tag} className="px-2 py-1 text-xs font-mono text-zinc-300 bg-zinc-900 border border-white/10 rounded">{tag}</span>
+                        <span key={tag} className="px-3 py-1.5 text-xs font-mono text-sky-100 bg-sky-900/20 border border-sky-500/20 rounded-md">
+                           {tag}
+                        </span>
                      ))}
                   </div>
                </div>
 
-               <div className="grid grid-cols-2 gap-3">
-                  <button className="flex items-center justify-center gap-2 py-3 bg-white text-black rounded font-bold text-sm hover:bg-sky-500 hover:text-white transition-colors">
-                     <Download size={16} /> Report
+               {/* Enhanced Gallery */}
+               <div>
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <Layers size={14} className="text-sky-500" /> Render Gallery
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                     {[1,2,3,4].map(i => (
+                       <div 
+                          key={i} 
+                          onClick={() => setLightboxImg(`https://placehold.co/600x400/1a1a1a/FFF?text=Project+Image+${i}`)}
+                          className="aspect-video bg-zinc-900 rounded border border-white/5 hover:border-sky-500/50 transition-all cursor-zoom-in flex items-center justify-center group relative overflow-hidden"
+                       >
+                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/50 transition-opacity">
+                            <Maximize size={20} className="text-white" />
+                         </div>
+                         <span className="text-xs font-mono text-zinc-600 group-hover:opacity-0">FIG_0{i}</span>
+                       </div>
+                     ))}
+                  </div>
+               </div>
+
+               {/* Actions */}
+               <div className="grid grid-cols-2 gap-3 pt-6 border-t border-white/5">
+                  <button className="flex items-center justify-center gap-2 py-3 bg-white text-black rounded font-bold text-sm hover:bg-sky-400 hover:text-white transition-all shadow-lg shadow-white/5">
+                     <Download size={16} /> Specifications
                   </button>
-                  <button className="flex items-center justify-center gap-2 py-3 bg-transparent border border-white/20 text-white rounded font-bold text-sm hover:border-white transition-colors">
-                     <Github size={16} /> Source
+                  <button className="flex items-center justify-center gap-2 py-3 bg-zinc-900 border border-white/10 text-white rounded font-bold text-sm hover:border-sky-500 hover:text-sky-400 transition-all">
+                     <GitBranch size={16} /> Repository
                   </button>
                </div>
             </div>
          </div>
       </div>
     </motion.div>
+    {/* Lightbox Overlay */}
+    <AnimatePresence>
+      {lightboxImg && <Lightbox src={lightboxImg} onClose={() => setLightboxImg(null)} />}
+    </AnimatePresence>
+    </>
   );
 }
 
@@ -427,53 +508,91 @@ export default function App() {
 
       <main className="relative z-10 pt-20">
         
+        {/* REDESIGNED HERO: Engineering Terminal / Dashboard */}
         <section id="hero" ref={el => sectionsRef.current.hero = el} className="min-h-screen flex flex-col justify-center px-6 lg:px-12">
-           <div className="max-w-5xl">
+           <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+              
+              {/* Left: Intro Text */}
               <motion.div 
-                initial={{ opacity: 0, y: 30 }} 
-                animate={{ opacity: 1, y: 0 }} 
-                transition={{ duration: 0.8, ease: "easeOut" }}
+                initial={{ opacity: 0, x: -30 }} 
+                animate={{ opacity: 1, x: 0 }} 
+                transition={{ duration: 0.8 }}
               >
-                 <div className="flex items-center gap-3 mb-6">
-                    <div className="h-[1px] w-12 bg-sky-500"></div>
-                    <span className="text-sky-500 font-mono text-sm tracking-widest">SYSTEM_ONLINE // V2.4</span>
+                 <div className="flex items-center gap-2 mb-4 text-sky-500 font-mono text-xs tracking-[0.2em]">
+                    <Terminal size={14} />
+                    <span>TERMINAL_ACCESS_GRANTED</span>
                  </div>
                  
-                 <h1 className="text-5xl md:text-7xl font-bold text-white tracking-tight leading-tight mb-6">
-                    Precision Engineering. <br />
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-slate-400">
-                       Digital Simulation.
-                    </span>
+                 <h1 className="text-5xl md:text-7xl font-bold text-white tracking-tight leading-[1.1] mb-6">
+                    Engineering <br />
+                    <span className="text-zinc-500">the</span> <span className="text-sky-500">Future</span>.
                  </h1>
                  
-                 <p className="text-xl text-slate-400 max-w-2xl leading-relaxed font-light mb-10">
-                    Bridging the gap between theoretical mechanics and digital fabrication. 
-                    Specializing in computational analysis, robotics systems, and advanced manufacturing.
+                 <p className="text-lg text-zinc-400 max-w-lg leading-relaxed font-light mb-8 border-l-2 border-zinc-800 pl-6">
+                    I solve complex mechanical problems using data, code, and advanced simulation. 
+                    Expertise in <strong>Robotics</strong>, <strong>Computational Fluid Dynamics</strong>, and <strong>Generative Design</strong>.
                  </p>
 
-                 <div className="flex flex-wrap gap-4">
+                 <div className="flex gap-4">
                     <button 
                       onClick={() => scrollToSection('projects')}
-                      className="px-8 py-4 bg-white text-black font-bold rounded hover:bg-sky-400 transition-all flex items-center gap-2"
+                      className="px-6 py-3 bg-white text-black font-bold text-sm rounded hover:bg-sky-400 transition-all flex items-center gap-2 shadow-lg shadow-white/10"
                     >
-                       View Blueprints <ChevronRight size={16} />
-                    </button>
-                    <button 
-                      onClick={() => scrollToSection('contact')}
-                      className="px-8 py-4 border border-white/20 text-white font-bold rounded hover:bg-white/5 transition-all"
-                    >
-                       Contact Me
+                       INITIATE PROTOCOLS <ChevronRight size={16} />
                     </button>
                  </div>
               </motion.div>
+
+              {/* Right: System Status / Dashboard "Look" */}
+              <motion.div 
+                 initial={{ opacity: 0, scale: 0.9 }}
+                 animate={{ opacity: 1, scale: 1 }}
+                 transition={{ delay: 0.2, duration: 0.8 }}
+                 className="hidden lg:grid grid-cols-2 gap-4"
+              >
+                 <div className="bg-zinc-900/80 border border-white/10 p-6 rounded-lg backdrop-blur-md">
+                    <div className="flex items-center justify-between mb-4">
+                       <span className="text-xs font-mono text-zinc-500">SYSTEM_LOAD</span>
+                       <Activity size={16} className="text-green-500" />
+                    </div>
+                    <div className="text-3xl font-bold text-white mb-1">98<span className="text-sm text-zinc-500">%</span></div>
+                    <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+                       <div className="h-full w-[98%] bg-green-500"></div>
+                    </div>
+                 </div>
+
+                 <div className="bg-zinc-900/80 border border-white/10 p-6 rounded-lg backdrop-blur-md">
+                    <div className="flex items-center justify-between mb-4">
+                       <span className="text-xs font-mono text-zinc-500">PROJECTS_DEPLOYED</span>
+                       <Server size={16} className="text-sky-500" />
+                    </div>
+                    <div className="text-3xl font-bold text-white mb-1">15<span className="text-sm text-zinc-500">+</span></div>
+                    <p className="text-[10px] text-zinc-500">Last Update: 2H Ago</p>
+                 </div>
+
+                 <div className="bg-zinc-900/80 border border-white/10 p-6 rounded-lg backdrop-blur-md col-span-2">
+                    <div className="flex items-center justify-between mb-4">
+                       <span className="text-xs font-mono text-zinc-500">ACTIVE_MODULES</span>
+                       <Database size={16} className="text-orange-500" />
+                    </div>
+                    <div className="flex gap-2">
+                       {["SolidWorks", "ANSYS", "ROS 2", "Python"].map(tech => (
+                          <span key={tech} className="px-2 py-1 bg-white/5 border border-white/5 text-[10px] text-zinc-300 rounded">
+                             {tech}
+                          </span>
+                       ))}
+                    </div>
+                 </div>
+              </motion.div>
+
            </div>
            
            <motion.div 
               animate={{ y: [0, 10, 0] }} 
               transition={{ repeat: Infinity, duration: 2 }}
-              className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-slate-500"
+              className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-zinc-600"
            >
-              <span className="text-[10px] font-mono tracking-widest">SCROLL</span>
+              <span className="text-[10px] font-mono tracking-widest">SCROLL_FOR_DATA</span>
               <MousePointer2 size={16} />
            </motion.div>
         </section>
