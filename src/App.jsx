@@ -4,7 +4,6 @@ import {
   PerspectiveCamera, 
   Environment, 
   Float, 
-  ContactShadows, 
   OrbitControls, 
   useGLTF, 
   Text,
@@ -161,7 +160,7 @@ const MainScene = () => {
   );
 };
 
-// 3. CUSTOM GLB LOADER - FIXED CENTERING & MATERIAL
+// 3. CUSTOM GLB LOADER - FIXED CENTERING
 const CustomRoverModel = () => {
   const { scene } = useGLTF('/rover_model.glb'); 
   
@@ -171,17 +170,17 @@ const CustomRoverModel = () => {
             if (child.isMesh) {
                 child.castShadow = true;
                 child.receiveShadow = true;
-                // Use a darker, more metallic material to prevent blowout
                 child.material = new THREE.MeshStandardMaterial({ 
-                    color: '#64748b', // Slate 500
-                    roughness: 0.6,
-                    metalness: 0.4
+                    color: '#e2e8f0', 
+                    roughness: 0.5,
+                    metalness: 0.2
                 });
             }
         });
     }
   }, [scene]);
   
+  // <Center> ensures the model rotates around its geometric center
   return (
     <Center top>
       <primitive object={scene} scale={1.5} />
@@ -198,35 +197,30 @@ const GenericCADModel = ({ color }) => (
   </Center>
 );
 
-// 4. PROJECT SCENE COMPONENT (FIXED LIGHTING)
+// 4. PROJECT SCENE COMPONENT - FIXED SHADOWS
 const ProjectScene = ({ project }) => {
   return (
     <>
       <OrbitControls enablePan={true} autoRotate autoRotateSpeed={0.8} makeDefault />
       
-      {/* Reduced Ambient Light to avoid whiteout */}
       <ambientLight intensity={0.5} />
-      
-      {/* Controlled Directional Light */}
       <directionalLight position={[5, 8, 5]} intensity={1.2} castShadow />
       <directionalLight position={[-5, 3, -5]} intensity={0.5} color="#0ea5e9" />
-      
-      {/* Environment: City preset but we rely on bg color to hide it */}
       <Environment preset="city" />
       
       <Float speed={2} rotationIntensity={0.1} floatIntensity={0.1} floatingRange={[-0.05, 0.05]}>
           {project.id === 'rover' ? <CustomRoverModel /> : <GenericCADModel color={project.colorStr} />}
       </Float>
       
-      {/* Adjusted Shadows - Darker and more subtle */}
-      <ContactShadows 
-        position={[0, -0.1, 0]} 
-        opacity={0.5} 
-        scale={10} 
-        blur={2.5} 
-        far={1.5} 
-        color="#000000" 
-      />
+      {/* FIXED SHADOWS: Removed ContactShadows (the grey disc) */}
+      {/* Replaced with a clean Engineering Grid and Invisible Shadow Plane */}
+      <group position={[0, -0.5, 0]}>
+        <gridHelper args={[20, 20, '#334155', '#1e293b']} />
+        <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+          <planeGeometry args={[20, 20]} />
+          <shadowMaterial opacity={0.4} />
+        </mesh>
+      </group>
     </>
   );
 };
@@ -312,7 +306,6 @@ const ProjectCard = ({ project, onClick, index }) => {
   );
 }
 
-// Lightbox Component
 const Lightbox = ({ src, onClose }) => (
   <motion.div 
     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -337,10 +330,9 @@ const ProjectModal = ({ project, onClose }) => {
       exit={{ opacity: 0, scale: 0.95 }}
       className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-8 bg-black/80 backdrop-blur-sm"
     >
-      {/* Expanded Size Container */}
-      <div className="w-full max-w-7xl h-[90vh] bg-zinc-950 border border-white/10 rounded-xl overflow-hidden flex flex-col lg:flex-row shadow-2xl shadow-black relative">
+      {/* Modal Size: Increased to use most of the screen */}
+      <div className="w-[95vw] max-w-[1800px] h-[92vh] bg-zinc-950 border border-white/10 rounded-xl overflow-hidden flex flex-col lg:flex-row shadow-2xl shadow-black relative">
          
-         {/* Close Button */}
          <button 
             onClick={onClose} 
             className="absolute top-4 right-4 z-20 p-2 bg-black/50 text-white/50 hover:text-white rounded-full border border-white/10 hover:bg-red-500/20 hover:border-red-500/50 transition-all"
@@ -348,14 +340,13 @@ const ProjectModal = ({ project, onClose }) => {
             <X size={20}/>
          </button>
 
-         {/* Left: 3D Viewport (Larger) */}
-         <div className="w-full lg:w-3/5 h-1/2 lg:h-full relative bg-zinc-900 border-b lg:border-b-0 lg:border-r border-white/10">
+         {/* Left: 3D Viewport */}
+         <div className="w-full lg:w-2/3 h-1/2 lg:h-full relative bg-zinc-900 border-b lg:border-b-0 lg:border-r border-white/10">
             <div className="absolute top-6 left-6 z-10 flex flex-col gap-2 pointer-events-none">
                <span className="text-xs font-mono text-sky-500 tracking-widest">INTERACTIVE_VIEWPORT</span>
                <h2 className="text-2xl font-bold text-white">{project.title}</h2>
             </div>
             <Canvas shadows camera={{ position: [4, 4, 6], fov: 45 }}>
-              {/* Fix for "Spotlight" look: Explicitly set dark background color inside Canvas */}
               <color attach="background" args={['#09090b']} />
               <Suspense fallback={
                  <Text position={[0,0,0]} fontSize={0.5} color="white">LOADING ASSETS...</Text>
@@ -364,15 +355,14 @@ const ProjectModal = ({ project, onClose }) => {
               </Suspense>
             </Canvas>
             
-            {/* Controls Hint */}
             <div className="absolute bottom-6 left-6 flex items-center gap-4 text-[10px] font-mono text-zinc-500">
                <div className="flex items-center gap-1"><MousePointer2 size={10}/> DRAG TO ROTATE</div>
                <div className="flex items-center gap-1"><Maximize size={10}/> SCROLL TO ZOOM</div>
             </div>
          </div>
 
-         {/* Right: Data & Gallery Panel */}
-         <div className="w-full lg:w-2/5 h-1/2 lg:h-full bg-zinc-950 p-8 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+         {/* Right: Data Panel */}
+         <div className="w-full lg:w-1/3 h-1/2 lg:h-full bg-zinc-950 p-8 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent flex flex-col">
             
             <div className="mb-8">
                <div className="flex items-center gap-2 mb-4">
@@ -387,8 +377,7 @@ const ProjectModal = ({ project, onClose }) => {
                </p>
             </div>
 
-            <div className="space-y-8">
-               {/* Tech Stack */}
+            <div className="space-y-8 flex-1">
                <div>
                   <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
                     <Code size={14} className="text-sky-500" /> System Architecture
@@ -402,16 +391,16 @@ const ProjectModal = ({ project, onClose }) => {
                   </div>
                </div>
 
-               {/* Enhanced Gallery */}
                <div>
                   <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
                     <LayersIcon size={14} className="text-sky-500" /> Render Gallery
                   </h3>
+                  {/* Gallery with clickable lightbox */}
                   <div className="grid grid-cols-2 gap-3">
                      {[1,2,3,4].map(i => (
                        <div 
                           key={i} 
-                          onClick={() => setLightboxImg(`https://placehold.co/600x400/1a1a1a/FFF?text=Project+Image+${i}`)}
+                          onClick={() => setLightboxImg(`https://placehold.co/1200x800/1a1a1a/FFF?text=Project+Image+${i}`)}
                           className="aspect-video bg-zinc-900 rounded border border-white/5 hover:border-sky-500/50 transition-all cursor-zoom-in flex items-center justify-center group relative overflow-hidden"
                        >
                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/50 transition-opacity">
@@ -422,21 +411,19 @@ const ProjectModal = ({ project, onClose }) => {
                      ))}
                   </div>
                </div>
-
-               {/* Actions */}
-               <div className="grid grid-cols-2 gap-3 pt-6 border-t border-white/5">
-                  <button className="flex items-center justify-center gap-2 py-3 bg-white text-black rounded font-bold text-sm hover:bg-sky-400 hover:text-white transition-all shadow-lg shadow-white/5">
-                     <Download size={16} /> Specifications
-                  </button>
-                  <button className="flex items-center justify-center gap-2 py-3 bg-zinc-900 border border-white/10 text-white rounded font-bold text-sm hover:border-sky-500 hover:text-sky-400 transition-all">
-                     <GitBranch size={16} /> Repository
-                  </button>
-               </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3 pt-6 border-t border-white/5 mt-auto">
+                <button className="flex items-center justify-center gap-2 py-3 bg-white text-black rounded font-bold text-sm hover:bg-sky-400 hover:text-white transition-all shadow-lg shadow-white/5">
+                    <Download size={16} /> Specifications
+                </button>
+                <button className="flex items-center justify-center gap-2 py-3 bg-zinc-900 border border-white/10 text-white rounded font-bold text-sm hover:border-sky-500 hover:text-sky-400 transition-all">
+                    <GitBranch size={16} /> Repository
+                </button>
             </div>
          </div>
       </div>
     </motion.div>
-    {/* Lightbox Overlay */}
     <AnimatePresence>
       {lightboxImg && <Lightbox src={lightboxImg} onClose={() => setLightboxImg(null)} />}
     </AnimatePresence>
@@ -515,96 +502,97 @@ export default function App() {
 
       <main className="relative z-10 pt-20">
         
-        {/* REDESIGNED HERO: Engineering Terminal / Dashboard */}
+        {/* REDESIGNED HERO: SYSTEM DASHBOARD */}
         <section id="hero" ref={el => sectionsRef.current.hero = el} className="min-h-screen flex flex-col justify-center px-6 lg:px-12">
-           <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+           <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
               
-              {/* Left: Intro Text */}
+              {/* Left: Core Identity */}
               <motion.div 
                 initial={{ opacity: 0, x: -30 }} 
                 animate={{ opacity: 1, x: 0 }} 
                 transition={{ duration: 0.8 }}
               >
-                 <div className="flex items-center gap-2 mb-4 text-sky-500 font-mono text-xs tracking-[0.2em]">
-                    <Terminal size={14} />
-                    <span>TERMINAL_ACCESS_GRANTED</span>
+                 <div className="inline-block px-3 py-1 mb-6 text-[10px] font-mono text-emerald-400 bg-emerald-900/20 border border-emerald-500/20 rounded-full tracking-widest">
+                    ● SYSTEM_ONLINE
                  </div>
                  
-                 <h1 className="text-5xl md:text-7xl font-bold text-white tracking-tight leading-[1.1] mb-6">
-                    Engineering <br />
-                    <span className="text-zinc-500">the</span> <span className="text-sky-500">Future</span>.
+                 <h1 className="text-6xl md:text-8xl font-bold text-white tracking-tight leading-none mb-6">
+                    MECH<br />
+                    <span className="text-zinc-700">ENGINEER</span>
                  </h1>
                  
-                 <p className="text-lg text-zinc-400 max-w-lg leading-relaxed font-light mb-8 border-l-2 border-zinc-800 pl-6">
-                    I solve complex mechanical problems using data, code, and advanced simulation. 
-                    Expertise in <strong>Robotics</strong>, <strong>Computational Fluid Dynamics</strong>, and <strong>Generative Design</strong>.
+                 <p className="text-xl text-zinc-400 max-w-md leading-relaxed font-light mb-10 border-l-2 border-sky-500 pl-6">
+                    High-precision CAD design, Computational Fluid Dynamics, and Robotics integration.
                  </p>
 
-                 <div className="flex gap-4">
+                 <div className="flex flex-col sm:flex-row gap-4">
                     <button 
                       onClick={() => scrollToSection('projects')}
-                      className="px-6 py-3 bg-white text-black font-bold text-sm rounded hover:bg-sky-400 transition-all flex items-center gap-2 shadow-lg shadow-white/10"
+                      className="px-8 py-4 bg-white text-black font-bold text-sm rounded hover:bg-sky-400 hover:text-white transition-all flex items-center justify-center gap-2 shadow-xl shadow-white/5"
                     >
-                       INITIATE PROTOCOLS <ChevronRight size={16} />
+                       <Activity size={16} /> VIEW SIMULATIONS
+                    </button>
+                    <button 
+                      onClick={() => scrollToSection('contact')}
+                      className="px-8 py-4 bg-zinc-900 text-zinc-300 border border-zinc-800 font-bold text-sm rounded hover:border-sky-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                    >
+                       INITIALIZE CONTACT
                     </button>
                  </div>
               </motion.div>
 
-              {/* Right: System Status / Dashboard "Look" */}
+              {/* Right: Live Status Dashboard */}
               <motion.div 
-                 initial={{ opacity: 0, scale: 0.9 }}
-                 animate={{ opacity: 1, scale: 1 }}
+                 initial={{ opacity: 0, x: 30 }}
+                 animate={{ opacity: 1, x: 0 }}
                  transition={{ delay: 0.2, duration: 0.8 }}
-                 className="hidden lg:grid grid-cols-2 gap-4"
+                 className="hidden lg:block"
               >
-                 <div className="bg-zinc-900/80 border border-white/10 p-6 rounded-lg backdrop-blur-md">
-                    <div className="flex items-center justify-between mb-4">
-                       <span className="text-xs font-mono text-zinc-500">SYSTEM_LOAD</span>
-                       <Activity size={16} className="text-green-500" />
+                 <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-8 backdrop-blur-md relative overflow-hidden">
+                    {/* Decorative Scan Line */}
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-sky-500 to-transparent animate-pulse"></div>
+                    
+                    <div className="grid grid-cols-2 gap-6 mb-8">
+                       <div>
+                          <div className="text-xs font-mono text-zinc-500 mb-1">CURRENT_STATUS</div>
+                          <div className="text-2xl font-bold text-emerald-400 flex items-center gap-2">
+                             ACTIVE <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span>
+                          </div>
+                       </div>
+                       <div>
+                          <div className="text-xs font-mono text-zinc-500 mb-1">LOCATION</div>
+                          <div className="text-2xl font-bold text-white">REMOTE</div>
+                       </div>
                     </div>
-                    <div className="text-3xl font-bold text-white mb-1">98<span className="text-sm text-zinc-500">%</span></div>
-                    <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
-                       <div className="h-full w-[98%] bg-green-500"></div>
-                    </div>
-                 </div>
 
-                 <div className="bg-zinc-900/80 border border-white/10 p-6 rounded-lg backdrop-blur-md">
-                    <div className="flex items-center justify-between mb-4">
-                       <span className="text-xs font-mono text-zinc-500">PROJECTS_DEPLOYED</span>
-                       <Server size={16} className="text-sky-500" />
-                    </div>
-                    <div className="text-3xl font-bold text-white mb-1">15<span className="text-sm text-zinc-500">+</span></div>
-                    <p className="text-[10px] text-zinc-500">Last Update: 2H Ago</p>
-                 </div>
+                    <div className="space-y-6">
+                       <div className="bg-black/40 p-4 rounded border border-white/5">
+                          <div className="flex justify-between text-xs font-mono text-zinc-400 mb-2">
+                             <span>CORE_COMPETENCY_LOAD</span>
+                             <span>98%</span>
+                          </div>
+                          <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                             <div className="h-full w-[98%] bg-sky-500"></div>
+                          </div>
+                       </div>
 
-                 <div className="bg-zinc-900/80 border border-white/10 p-6 rounded-lg backdrop-blur-md col-span-2">
-                    <div className="flex items-center justify-between mb-4">
-                       <span className="text-xs font-mono text-zinc-500">ACTIVE_MODULES</span>
-                       <Database size={16} className="text-orange-500" />
-                    </div>
-                    <div className="flex gap-2">
-                       {["SolidWorks", "ANSYS", "ROS 2", "Python"].map(tech => (
-                          <span key={tech} className="px-2 py-1 bg-white/5 border border-white/5 text-[10px] text-zinc-300 rounded">
-                             {tech}
-                          </span>
-                       ))}
+                       <div className="grid grid-cols-3 gap-2">
+                          {['ANSYS', 'SOLIDWORKS', 'PYTHON', 'MATLAB', 'C++', 'ROS'].map((tool) => (
+                             <div key={tool} className="text-[10px] font-mono text-center py-2 bg-white/5 rounded text-zinc-400 border border-white/5">
+                                {tool}
+                             </div>
+                          ))}
+                       </div>
                     </div>
                  </div>
               </motion.div>
 
            </div>
-           
-           <motion.div 
-              animate={{ y: [0, 10, 0] }} 
-              transition={{ repeat: Infinity, duration: 2 }}
-              className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-zinc-600"
-           >
-              <span className="text-[10px] font-mono tracking-widest">SCROLL_FOR_DATA</span>
-              <MousePointer2 size={16} />
-           </motion.div>
         </section>
 
+        {/* Existing sections... */}
         <section id="profile" ref={el => sectionsRef.current.profile = el} className="py-32 px-6 lg:px-12 bg-zinc-950/50 border-t border-white/5 backdrop-blur-sm">
+           {/* ... (Profile content maintained) ... */}
            <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
               <div>
                  <h2 className="text-3xl font-bold mb-6 flex items-center gap-3">
@@ -656,6 +644,7 @@ export default function App() {
         </section>
 
         <section id="projects" ref={el => sectionsRef.current.projects = el} className="py-32 px-6 lg:px-12">
+           {/* ... (Projects content maintained) ... */}
            <div className="max-w-7xl mx-auto">
               <div className="flex items-end justify-between mb-12">
                  <div>
@@ -682,6 +671,7 @@ export default function App() {
         </section>
 
         <section id="contact" ref={el => sectionsRef.current.contact = el} className="py-32 px-6 bg-zinc-950 border-t border-white/10">
+           {/* ... (Contact content maintained) ... */}
            <div className="max-w-3xl mx-auto text-center">
               <h2 className="text-5xl font-bold mb-8">Ready to collaborate?</h2>
               <p className="text-zinc-400 text-lg mb-12">
