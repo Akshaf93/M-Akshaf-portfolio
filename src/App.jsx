@@ -7,7 +7,8 @@ import {
   OrbitControls, 
   useGLTF, 
   Stars,
-  Center
+  Center,
+  Bounds // Added for auto-fitting model to view
 } from '@react-three/drei';
 import * as THREE from 'three';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -36,7 +37,7 @@ import {
   ArrowRight,
   BoxSelect,
   Settings,
-  Loader2 // Using standard Lucide loader instead of 3D Text
+  Loader2 
 } from 'lucide-react';
 
 // --- THEME CONFIG ---
@@ -190,8 +191,6 @@ const MainScene = () => {
 
 // 4. CUSTOM GLB LOADER
 const CustomRoverModel = () => {
-  // NOTE: If the file is missing, this might fail silently or show nothing.
-  // Ensure 'rover_model.glb' is in the 'public' folder.
   const { scene } = useGLTF('/rover_model.glb'); 
   
   useEffect(() => {
@@ -210,11 +209,14 @@ const CustomRoverModel = () => {
 
                 child.castShadow = true;
                 child.receiveShadow = true;
-                child.material = new THREE.MeshStandardMaterial({ 
-                    color: '#64748b',
-                    roughness: 0.7,
-                    metalness: 0.5
-                });
+                
+                // --- COLOR FIX ---
+                // Removed the material override so original GLB colors render.
+                // We only adjust metalness/roughness if needed, but preserving defaults is safer for colors.
+                if (child.material) {
+                    child.material.metalness = 0.2; // Slight metallic shine
+                    child.material.roughness = 0.8; // Mostly matte to avoid glare
+                }
             }
         });
     }
@@ -222,7 +224,7 @@ const CustomRoverModel = () => {
   
   return (
     <Center top>
-      <primitive object={scene} scale={1.5} />
+      <primitive object={scene} scale={1} /> 
     </Center>
   );
 };
@@ -236,19 +238,22 @@ const GenericCADModel = ({ color }) => (
   </Center>
 );
 
-// 5. PROJECT SCENE
+// 5. PROJECT SCENE - WITH BOUNDS FOR FIT-TO-VIEW
 const ProjectScene = ({ project }) => {
   return (
     <>
       <OrbitControls enablePan={true} autoRotate autoRotateSpeed={0.8} makeDefault />
-      <ambientLight intensity={0.4} />
-      <directionalLight position={[5, 8, 5]} intensity={1.0} castShadow />
-      <directionalLight position={[-5, 3, -5]} intensity={0.3} color="#0ea5e9" />
+      <ambientLight intensity={0.6} />
+      <directionalLight position={[5, 8, 5]} intensity={1.2} castShadow />
+      <directionalLight position={[-5, 3, -5]} intensity={0.5} color="#0ea5e9" />
       <Environment preset="city" />
       
-      <Float speed={2} rotationIntensity={0.1} floatIntensity={0.1} floatingRange={[-0.05, 0.05]}>
-          {project.id === 'rover' ? <CustomRoverModel /> : <GenericCADModel color={project.colorStr} />}
-      </Float>
+      {/* Bounds ensures the model fits perfectly in the camera view */}
+      <Bounds fit clip observe margin={1.2}>
+        <Float speed={2} rotationIntensity={0.1} floatIntensity={0.1} floatingRange={[-0.05, 0.05]}>
+            {project.id === 'rover' ? <CustomRoverModel /> : <GenericCADModel color={project.colorStr} />}
+        </Float>
+      </Bounds>
       
       <group position={[0, -0.5, 0]}>
         <gridHelper args={[20, 20, '#1e293b', '#0f172a']} />
@@ -262,7 +267,6 @@ const ProjectScene = ({ project }) => {
 const BackgroundView = () => (
   <div className="fixed inset-0 z-0">
     <Canvas dpr={[1, 2]} gl={{ antialias: true }}>
-      {/* IMPORTANT: Fallback set to null to prevent reconciler issues */}
       <Suspense fallback={null}>
         <MainScene />
       </Suspense>
@@ -278,8 +282,6 @@ const BackgroundView = () => (
   </div>
 );
 
-// Standard HTML Loading indicator for the Project View
-// This avoids using 3D Text inside Suspense which causes the crash
 const HTMLProjectLoader = () => (
   <div className="absolute inset-0 flex flex-col items-center justify-center text-white z-20">
      <Loader2 className="w-8 h-8 animate-spin text-sky-500 mb-2" />
@@ -294,18 +296,14 @@ const ProjectView3D = ({ project }) => (
        <h2 className="text-2xl font-bold text-white">{project.title}</h2>
     </div>
     
-    {/* We render the Canvas inside a parent div */}
     <Canvas shadows camera={{ position: [4, 4, 6], fov: 45 }}>
       <color attach="background" args={['#09090b']} />
-      {/* Fallback is NULL here, we use the HTML loader overlay instead */}
       <Suspense fallback={null}>
         <ProjectScene project={project} />
       </Suspense>
     </Canvas>
 
-    {/* Overlay Loader (HTML) - Safest way to handle loading states */}
     <Suspense fallback={<HTMLProjectLoader />}>
-        {/* This empty suspense boundary with a fallback allows us to show HTML while the canvas loads */}
     </Suspense>
     
     <div className="absolute bottom-6 left-6 flex items-center gap-4 text-[10px] font-mono text-zinc-500 pointer-events-none">
