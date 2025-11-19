@@ -35,7 +35,9 @@ import {
   Maximize,
   Layers as LayersIcon,
   ArrowRight,
-  BoxSelect
+  Ruler,
+  Settings,
+  Crosshair
 } from 'lucide-react';
 
 // --- THEME CONFIG ---
@@ -43,6 +45,7 @@ const THEME = {
   bg: '#09090b',        // Deep Zinc Black
   text: '#f8fafc',      // Slate 50
   accent: '#0ea5e9',    // Sky 500 (CAD Blue)
+  warning: '#f59e0b',   // Amber 500 (Engineering Warning)
   muted: '#64748b',     // Slate 500
   border: '#27272a',    // Zinc 800
   surface: '#18181b',   // Zinc 900
@@ -106,7 +109,52 @@ const TechnicalGear = ({ position, rotation, size = 1, teeth = 12, speed = 1, co
   );
 };
 
-// 2. BACKGROUND SCENE COMPONENT
+// 2. PROCEDURAL DRONE (Background Element)
+const Drone = () => {
+  const groupRef = useRef();
+  
+  useFrame(({ clock }) => {
+    if (!groupRef.current) return;
+    const t = clock.getElapsedTime();
+    
+    // Flight Path: Figure-8ish motion
+    groupRef.current.position.x = Math.sin(t * 0.5) * 8;
+    groupRef.current.position.y = Math.cos(t * 0.3) * 4 + 2;
+    groupRef.current.position.z = Math.sin(t * 0.2) * 5 - 5;
+    
+    // Banking
+    groupRef.current.rotation.z = -Math.cos(t * 0.5) * 0.2;
+    groupRef.current.rotation.x = Math.sin(t * 0.3) * 0.1;
+  });
+
+  return (
+    <group ref={groupRef} scale={0.5}>
+       {/* Body */}
+       <mesh>
+         <boxGeometry args={[1, 0.2, 1]} />
+         <meshStandardMaterial color="#334155" />
+       </mesh>
+       {/* Arms */}
+       <mesh rotation={[0, Math.PI/4, 0]}>
+         <boxGeometry args={[2.5, 0.1, 0.2]} />
+         <meshStandardMaterial color="#1e293b" />
+       </mesh>
+       <mesh rotation={[0, -Math.PI/4, 0]}>
+         <boxGeometry args={[2.5, 0.1, 0.2]} />
+         <meshStandardMaterial color="#1e293b" />
+       </mesh>
+       {/* Propellers (Visual only) */}
+       {[[-1, 0, 1], [1, 0, 1], [-1, 0, -1], [1, 0, -1]].map((pos, i) => (
+         <mesh key={i} position={[pos[0], 0.2, pos[2]]}>
+            <cylinderGeometry args={[0.4, 0.4, 0.05, 8]} />
+            <meshStandardMaterial color={THEME.accent} emissive={THEME.accent} emissiveIntensity={0.5} transparent opacity={0.6} />
+         </mesh>
+       ))}
+    </group>
+  );
+};
+
+// 3. BACKGROUND SCENE COMPONENT
 const MainScene = () => {
   const groupRef = useRef();
 
@@ -114,7 +162,6 @@ const MainScene = () => {
     const t = state.clock.getElapsedTime();
     if (groupRef.current) {
       groupRef.current.rotation.y = Math.sin(t * 0.1) * 0.1;
-      groupRef.current.position.y = Math.sin(t * 0.2) * 0.2;
     }
   });
 
@@ -127,38 +174,30 @@ const MainScene = () => {
       <spotLight position={[10, 10, 10]} angle={0.5} penumbra={1} intensity={1} color={THEME.accent} />
       <spotLight position={[-10, -10, -5]} angle={0.5} penumbra={1} intensity={0.5} color="white" />
       
+      {/* Background Machinery */}
       <group ref={groupRef} rotation={[0.5, 0, 0]} position={[2, 0, -5]}>
         <TechnicalGear position={[-2, 2, 0]} size={2} teeth={16} speed={0.2} color="#1e293b" />
         <TechnicalGear position={[0.5, 2, 0.5]} size={1} teeth={8} speed={-0.4} wireframe={true} />
         <TechnicalGear position={[-2, -1.5, -1]} size={3} teeth={24} speed={-0.13} color="#0f172a" />
         <TechnicalGear position={[2.5, -1.5, 1]} size={1.5} teeth={12} speed={0.26} color="#334155" />
         
+        {/* Abstract Shafts/Pipes */}
         <mesh position={[-2, 2, -2]} rotation={[Math.PI/2, 0, 0]}>
           <cylinderGeometry args={[0.2, 0.2, 8, 16]} />
           <meshStandardMaterial color="#475569" metalness={0.9} roughness={0.2} />
         </mesh>
-
-        <Float speed={2} rotationIntensity={0.2} floatIntensity={0.5}>
-          {Array.from({ length: 20 }).map((_, i) => (
-            <mesh key={i} position={[
-              (Math.random() - 0.5) * 15,
-              (Math.random() - 0.5) * 15,
-              (Math.random() - 0.5) * 10
-            ]}>
-              <octahedronGeometry args={[0.05]} />
-              <meshBasicMaterial color={THEME.accent} transparent opacity={0.4} />
-            </mesh>
-          ))}
-        </Float>
       </group>
 
-      <Stars radius={100} depth={50} count={2000} factor={4} saturation={0} fade speed={1} />
+      {/* Flying Drone Element */}
+      <Drone />
+
+      <Stars radius={100} depth={50} count={1000} factor={4} saturation={0} fade speed={1} />
       <fog attach="fog" args={['#09090b', 5, 20]} />
     </>
   );
 };
 
-// 3. CUSTOM GLB LOADER - WITH AUTO-HIDING FOR FLOORS
+// 4. CUSTOM GLB LOADER
 const CustomRoverModel = () => {
   const { scene } = useGLTF('/rover_model.glb'); 
   
@@ -166,25 +205,20 @@ const CustomRoverModel = () => {
     if (scene) {
         scene.traverse((child) => {
             if (child.isMesh) {
-                // --- GEOMETRY FILTERING ---
-                // Compute bounding box to detect "floor" plates
                 child.geometry.computeBoundingBox();
                 const size = new THREE.Vector3();
                 child.geometry.boundingBox.getSize(size);
                 
-                // If an object is wider than 10 units, it's likely a floor environment. HIDE IT.
                 if (size.x > 10 || size.z > 10) {
                   child.visible = false;
                   return; 
                 }
 
-                // --- MATERIAL OVERRIDE ---
                 child.castShadow = true;
                 child.receiveShadow = true;
-                // Apply a dark matte metallic material to prevent whiteout
                 child.material = new THREE.MeshStandardMaterial({ 
-                    color: '#64748b',  // Dark Slate Grey
-                    roughness: 0.7,    // Matte finish to reduce glare
+                    color: '#64748b',
+                    roughness: 0.7,
                     metalness: 0.5
                 });
             }
@@ -208,25 +242,20 @@ const GenericCADModel = ({ color }) => (
   </Center>
 );
 
-// 4. PROJECT SCENE COMPONENT - CLEAN GRID ONLY
+// 5. PROJECT SCENE COMPONENT
 const ProjectScene = ({ project }) => {
   return (
     <>
       <OrbitControls enablePan={true} autoRotate autoRotateSpeed={0.8} makeDefault />
-      
       <ambientLight intensity={0.4} />
-      
-      {/* Controlled Directional Light */}
       <directionalLight position={[5, 8, 5]} intensity={1.0} castShadow />
       <directionalLight position={[-5, 3, -5]} intensity={0.3} color="#0ea5e9" />
-      
       <Environment preset="city" />
       
       <Float speed={2} rotationIntensity={0.1} floatIntensity={0.1} floatingRange={[-0.05, 0.05]}>
           {project.id === 'rover' ? <CustomRoverModel /> : <GenericCADModel color={project.colorStr} />}
       </Float>
       
-      {/* ONLY GRID - NO SHADOW PLANE to prevent white circle artifacts */}
       <group position={[0, -0.5, 0]}>
         <gridHelper args={[20, 20, '#1e293b', '#0f172a']} />
       </group>
@@ -236,9 +265,91 @@ const ProjectScene = ({ project }) => {
 
 // --- UI COMPONENTS ---
 
+// Animated Mechanical Diagram for Hero Section
+const MechanicalDiagram = () => {
+  return (
+    <div className="relative w-full h-64 md:h-80 border border-white/10 bg-zinc-900/30 backdrop-blur-sm rounded-lg p-6 flex flex-col">
+       <div className="flex justify-between items-center border-b border-zinc-700/50 pb-2 mb-4">
+          <div className="flex items-center gap-2 text-xs font-mono text-sky-500">
+             <Settings size={12} className="animate-spin-slow"/>
+             <span>ASSEMBLY_VIEW_1.0</span>
+          </div>
+          <span className="text-[10px] text-zinc-500 font-mono">SCALE: 1:1</span>
+       </div>
+
+       <div className="flex-1 relative overflow-hidden">
+          {/* Decorative Grid Background */}
+          <div className="absolute inset-0 opacity-10" 
+             style={{ backgroundImage: `linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)`, backgroundSize: '20px 20px' }}>
+          </div>
+          
+          {/* Animated Piston/Crank Mechanism (SVG) */}
+          <svg viewBox="0 0 200 150" className="w-full h-full">
+             <defs>
+                <pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                   <line stroke="#334155" strokeWidth="1" y2="4"/>
+                </pattern>
+             </defs>
+             
+             {/* Base/Cylinder */}
+             <rect x="70" y="20" width="60" height="100" fill="none" stroke="#475569" strokeWidth="2" />
+             
+             {/* Piston Head (Animating up/down) */}
+             <motion.rect 
+                x="75" y="40" width="50" height="30" rx="2"
+                fill="url(#hatch)" stroke="#94a3b8" strokeWidth="2"
+                animate={{ y: [0, 40, 0] }}
+                transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+             />
+             
+             {/* Connecting Rod */}
+             <motion.line 
+                x1="100" y1="70" x2="100" y2="130"
+                stroke="#0ea5e9" strokeWidth="4" strokeLinecap="round"
+                animate={{ 
+                   y1: [0, 40, 0],
+                   x2: [0, 20, 0, -20, 0], // Mocking rotary motion X offset
+                   y2: [0, 0, 0, 0, 0] // Fixed crank center Y relative to motion
+                }}
+                transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+             />
+
+             {/* Crank Wheel */}
+             <circle cx="100" cy="130" r="15" fill="none" stroke="#64748b" strokeWidth="2" strokeDasharray="4 2"/>
+             <motion.circle 
+                cx="100" cy="130" r="4" fill="#0ea5e9"
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                style={{ originX: "100px", originY: "130px" }} // Rotate around center
+             />
+             
+             {/* Dimension Lines */}
+             <line x1="60" y1="20" x2="60" y2="120" stroke="#f59e0b" strokeWidth="1" markerEnd="url(#arrow)" />
+             <text x="40" y="70" fill="#f59e0b" fontSize="8" fontFamily="monospace" transform="rotate(-90 40,70)">100mm STROKE</text>
+          </svg>
+
+          {/* Overlay Data */}
+          <div className="absolute top-2 right-2 text-[10px] font-mono text-zinc-400 flex flex-col gap-1">
+             <span className="flex justify-between w-20"><span>RPM:</span> <span className="text-white">1500</span></span>
+             <span className="flex justify-between w-20"><span>LOAD:</span> <span className="text-white">45N</span></span>
+             <span className="flex justify-between w-20"><span>TEMP:</span> <span className="text-emerald-400">NOM</span></span>
+          </div>
+       </div>
+
+       <div className="mt-4 flex justify-between items-end">
+          <div className="flex gap-2">
+             <div className="w-2 h-2 bg-sky-500 rounded-full animate-pulse"></div>
+             <span className="text-[10px] font-mono text-zinc-400">SIMULATION_RUNNING</span>
+          </div>
+          <span className="text-[10px] font-mono text-zinc-600">FIG 1.4 - KINEMATICS</span>
+       </div>
+    </div>
+  );
+};
+
 const Navbar = ({ activeSection, scrollToSection }) => {
   const navItems = [
-    { id: 'hero', label: 'HOME' },
+    { id: 'hero', label: 'STATUS' },
     { id: 'profile', label: 'PROFILE' },
     { id: 'projects', label: 'PROJECTS' },
     { id: 'contact', label: 'CONTACT' }
@@ -339,7 +450,6 @@ const ProjectModal = ({ project, onClose }) => {
       exit={{ opacity: 0, scale: 0.95 }}
       className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-8 bg-black/80 backdrop-blur-sm"
     >
-      {/* Modal Size */}
       <div className="w-[95vw] max-w-[1800px] h-[92vh] bg-zinc-950 border border-white/10 rounded-xl overflow-hidden flex flex-col lg:flex-row shadow-2xl shadow-black relative">
          
          <button 
@@ -510,35 +620,50 @@ export default function App() {
 
       <main className="relative z-10 pt-20">
         
-        {/* REDESIGNED HERO: SCHEMATIC FOCUS */}
+        {/* REDESIGNED HERO: TECHNICAL BLUEPRINT FOCUS */}
         <section id="hero" ref={el => sectionsRef.current.hero = el} className="min-h-screen flex flex-col justify-center px-6 lg:px-12">
-           <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+           <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
               
-              {/* Left: Typography & Value Prop */}
+              {/* Left: Typography */}
               <motion.div 
                 initial={{ opacity: 0, x: -30 }} 
                 animate={{ opacity: 1, x: 0 }} 
                 transition={{ duration: 0.8 }}
               >
-                 <div className="inline-block px-3 py-1 mb-6 text-[10px] font-mono text-sky-400 border border-sky-500/30 bg-sky-900/10 rounded tracking-widest uppercase">
-                    Mechanical Design & Analysis
+                 <div className="flex items-center gap-3 mb-6">
+                    <span className="px-2 py-1 bg-sky-900/30 border border-sky-500/30 text-sky-400 text-[10px] font-mono tracking-widest rounded">
+                       OPERATIONAL STATUS: ACTIVE
+                    </span>
+                    <div className="h-[1px] flex-1 bg-gradient-to-r from-sky-500/50 to-transparent"></div>
                  </div>
                  
-                 <h1 className="text-5xl md:text-7xl font-bold text-white tracking-tight leading-[1.1] mb-6">
-                    Designing <br />
-                    Robust <span className="text-sky-500">Systems</span>.
+                 <h1 className="text-6xl md:text-8xl font-bold text-white tracking-tight leading-none mb-6">
+                    ADVANCED <br />
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-slate-200">MECHANICAL</span> <br />
+                    SYSTEMS.
                  </h1>
                  
-                 <p className="text-lg text-zinc-400 max-w-md leading-relaxed font-light mb-10">
-                    Delivering precision hardware solutions through advanced simulation, data-driven optimization, and fabrication.
-                 </p>
+                 <div className="flex gap-8 border-l-2 border-zinc-800 pl-6 mb-10">
+                    <div>
+                       <div className="text-2xl font-bold text-white">CAD</div>
+                       <div className="text-xs text-zinc-500 font-mono">DESIGN</div>
+                    </div>
+                    <div>
+                       <div className="text-2xl font-bold text-white">FEA</div>
+                       <div className="text-xs text-zinc-500 font-mono">ANALYSIS</div>
+                    </div>
+                    <div>
+                       <div className="text-2xl font-bold text-white">CAM</div>
+                       <div className="text-xs text-zinc-500 font-mono">MFG</div>
+                    </div>
+                 </div>
 
-                 <div className="flex flex-col sm:flex-row gap-4">
+                 <div className="flex gap-4">
                     <button 
                       onClick={() => scrollToSection('projects')}
-                      className="group px-8 py-4 bg-white text-black font-bold text-sm rounded hover:bg-sky-400 hover:text-white transition-all flex items-center justify-center gap-3 shadow-xl shadow-white/5"
+                      className="px-8 py-4 bg-white text-black font-bold text-sm rounded hover:bg-sky-400 hover:text-white transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.1)]"
                     >
-                       VIEW PORTFOLIO <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform"/>
+                       <BoxSelect size={16} /> VIEW PORTFOLIO
                     </button>
                     <button 
                       onClick={() => scrollToSection('contact')}
@@ -549,63 +674,38 @@ export default function App() {
                  </div>
               </motion.div>
 
-              {/* Right: Schematic Visualizer */}
+              {/* Right: Live Mechanical Diagram */}
               <motion.div 
-                 initial={{ opacity: 0, x: 30 }}
-                 animate={{ opacity: 1, x: 0 }}
-                 transition={{ delay: 0.2, duration: 0.8 }}
-                 className="hidden lg:flex justify-center relative"
+                 initial={{ opacity: 0, scale: 0.95 }}
+                 animate={{ opacity: 1, scale: 1 }}
+                 transition={{ delay: 0.3, duration: 0.8 }}
+                 className="hidden lg:block"
               >
-                 {/* Decorative Schematic Box */}
-                 <div className="relative w-80 h-80 border border-white/10 bg-zinc-900/30 backdrop-blur-sm rounded-lg p-6 flex flex-col justify-between">
-                    {/* Corner Accents */}
-                    <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-sky-500"></div>
-                    <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-sky-500"></div>
-                    <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-sky-500"></div>
-                    <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-sky-500"></div>
-
-                    {/* Content inside the box */}
-                    <div className="text-xs font-mono text-zinc-500 flex justify-between">
-                       <span>FIG 1.0</span>
-                       <span>SCHEMATIC_VIEW</span>
+                 <MechanicalDiagram />
+                 
+                 {/* Schematic Annotations */}
+                 <div className="mt-4 flex justify-between text-[10px] font-mono text-zinc-600">
+                    <div className="flex gap-4">
+                       <span>REF: ISO-9001</span>
+                       <span>TOL: ±0.01mm</span>
                     </div>
-
-                    <div className="flex-1 flex items-center justify-center">
-                       {/* Animated Node Graph Representation */}
-                       <div className="relative w-32 h-32">
-                          <div className="absolute inset-0 border border-dashed border-zinc-700 rounded-full animate-spin-slow"></div>
-                          <div className="absolute inset-4 border border-zinc-700 rounded-full"></div>
-                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 bg-sky-500 rounded-full shadow-[0_0_15px_rgba(14,165,233,0.5)]"></div>
-                          
-                          {/* Connecting Lines */}
-                          <div className="absolute top-1/2 left-1/2 w-16 h-[1px] bg-zinc-700 origin-left rotate-45"></div>
-                          <div className="absolute top-1/2 left-1/2 w-16 h-[1px] bg-zinc-700 origin-left rotate-[135deg]"></div>
-                          <div className="absolute top-1/2 left-1/2 w-16 h-[1px] bg-zinc-700 origin-left rotate-[270deg]"></div>
-
-                          {/* Nodes */}
-                          <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 px-2 py-1 bg-zinc-900 border border-zinc-700 text-[10px] text-zinc-300">CAD</div>
-                          <div className="absolute bottom-4 right-0 px-2 py-1 bg-zinc-900 border border-zinc-700 text-[10px] text-zinc-300">FEA</div>
-                          <div className="absolute bottom-4 left-0 px-2 py-1 bg-zinc-900 border border-zinc-700 text-[10px] text-zinc-300">MFG</div>
-                       </div>
-                    </div>
-
-                    <div className="text-[10px] font-mono text-zinc-600 mt-4">
-                       <div className="flex justify-between border-b border-zinc-800 pb-1 mb-1">
-                          <span>OPTIMIZATION</span>
-                          <span>ACTIVE</span>
-                       </div>
-                       <div className="flex justify-between">
-                          <span>TOLERANCE</span>
-                          <span>±0.05mm</span>
-                       </div>
-                    </div>
+                    <span>DRAWING NO. 44-2B</span>
                  </div>
               </motion.div>
 
            </div>
+           
+           <motion.div 
+              animate={{ y: [0, 10, 0] }} 
+              transition={{ repeat: Infinity, duration: 2 }}
+              className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-zinc-600"
+           >
+              <span className="text-[10px] font-mono tracking-widest">SCROLL_DOWN</span>
+              <MousePointer2 size={16} />
+           </motion.div>
         </section>
 
-        {/* ... (Profile, Projects, Contact sections maintained) ... */}
+        {/* ... (Rest of sections: Profile, Projects, Contact remain unchanged) ... */}
         <section id="profile" ref={el => sectionsRef.current.profile = el} className="py-32 px-6 lg:px-12 bg-zinc-950/50 border-t border-white/5 backdrop-blur-sm">
            <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
               <div>
