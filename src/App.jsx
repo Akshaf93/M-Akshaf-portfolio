@@ -6,7 +6,6 @@ import {
   Float, 
   OrbitControls, 
   useGLTF, 
-  Text,
   Stars,
   Center
 } from '@react-three/drei';
@@ -35,9 +34,9 @@ import {
   Maximize,
   Layers as LayersIcon,
   ArrowRight,
-  Ruler,
+  BoxSelect,
   Settings,
-  Crosshair
+  Loader2 // Using standard Lucide loader instead of 3D Text
 } from 'lucide-react';
 
 // --- THEME CONFIG ---
@@ -109,7 +108,7 @@ const TechnicalGear = ({ position, rotation, size = 1, teeth = 12, speed = 1, co
   );
 };
 
-// 2. PROCEDURAL DRONE (Background Element)
+// 2. PROCEDURAL DRONE
 const Drone = () => {
   const groupRef = useRef();
   
@@ -117,7 +116,7 @@ const Drone = () => {
     if (!groupRef.current) return;
     const t = clock.getElapsedTime();
     
-    // Flight Path: Figure-8ish motion
+    // Flight Path
     groupRef.current.position.x = Math.sin(t * 0.5) * 8;
     groupRef.current.position.y = Math.cos(t * 0.3) * 4 + 2;
     groupRef.current.position.z = Math.sin(t * 0.2) * 5 - 5;
@@ -129,12 +128,10 @@ const Drone = () => {
 
   return (
     <group ref={groupRef} scale={0.5}>
-       {/* Body */}
        <mesh>
          <boxGeometry args={[1, 0.2, 1]} />
          <meshStandardMaterial color="#334155" />
        </mesh>
-       {/* Arms */}
        <mesh rotation={[0, Math.PI/4, 0]}>
          <boxGeometry args={[2.5, 0.1, 0.2]} />
          <meshStandardMaterial color="#1e293b" />
@@ -143,7 +140,6 @@ const Drone = () => {
          <boxGeometry args={[2.5, 0.1, 0.2]} />
          <meshStandardMaterial color="#1e293b" />
        </mesh>
-       {/* Propellers (Visual only) */}
        {[[-1, 0, 1], [1, 0, 1], [-1, 0, -1], [1, 0, -1]].map((pos, i) => (
          <mesh key={i} position={[pos[0], 0.2, pos[2]]}>
             <cylinderGeometry args={[0.4, 0.4, 0.05, 8]} />
@@ -154,7 +150,7 @@ const Drone = () => {
   );
 };
 
-// 3. BACKGROUND SCENE COMPONENT
+// 3. BACKGROUND SCENE
 const MainScene = () => {
   const groupRef = useRef();
 
@@ -174,23 +170,18 @@ const MainScene = () => {
       <spotLight position={[10, 10, 10]} angle={0.5} penumbra={1} intensity={1} color={THEME.accent} />
       <spotLight position={[-10, -10, -5]} angle={0.5} penumbra={1} intensity={0.5} color="white" />
       
-      {/* Background Machinery */}
       <group ref={groupRef} rotation={[0.5, 0, 0]} position={[2, 0, -5]}>
         <TechnicalGear position={[-2, 2, 0]} size={2} teeth={16} speed={0.2} color="#1e293b" />
         <TechnicalGear position={[0.5, 2, 0.5]} size={1} teeth={8} speed={-0.4} wireframe={true} />
         <TechnicalGear position={[-2, -1.5, -1]} size={3} teeth={24} speed={-0.13} color="#0f172a" />
         <TechnicalGear position={[2.5, -1.5, 1]} size={1.5} teeth={12} speed={0.26} color="#334155" />
-        
-        {/* Abstract Shafts/Pipes */}
         <mesh position={[-2, 2, -2]} rotation={[Math.PI/2, 0, 0]}>
           <cylinderGeometry args={[0.2, 0.2, 8, 16]} />
           <meshStandardMaterial color="#475569" metalness={0.9} roughness={0.2} />
         </mesh>
       </group>
 
-      {/* Flying Drone Element */}
       <Drone />
-
       <Stars radius={100} depth={50} count={1000} factor={4} saturation={0} fade speed={1} />
       <fog attach="fog" args={['#09090b', 5, 20]} />
     </>
@@ -199,6 +190,8 @@ const MainScene = () => {
 
 // 4. CUSTOM GLB LOADER
 const CustomRoverModel = () => {
+  // NOTE: If the file is missing, this might fail silently or show nothing.
+  // Ensure 'rover_model.glb' is in the 'public' folder.
   const { scene } = useGLTF('/rover_model.glb'); 
   
   useEffect(() => {
@@ -209,6 +202,7 @@ const CustomRoverModel = () => {
                 const size = new THREE.Vector3();
                 child.geometry.boundingBox.getSize(size);
                 
+                // Hide floor plates
                 if (size.x > 10 || size.z > 10) {
                   child.visible = false;
                   return; 
@@ -242,7 +236,7 @@ const GenericCADModel = ({ color }) => (
   </Center>
 );
 
-// 5. PROJECT SCENE COMPONENT
+// 5. PROJECT SCENE
 const ProjectScene = ({ project }) => {
   return (
     <>
@@ -263,9 +257,66 @@ const ProjectScene = ({ project }) => {
   );
 };
 
+// --- ISOLATED VIEWS ---
+
+const BackgroundView = () => (
+  <div className="fixed inset-0 z-0">
+    <Canvas dpr={[1, 2]} gl={{ antialias: true }}>
+      {/* IMPORTANT: Fallback set to null to prevent reconciler issues */}
+      <Suspense fallback={null}>
+        <MainScene />
+      </Suspense>
+    </Canvas>
+    
+    <div className="absolute inset-0 pointer-events-none opacity-[0.03]" 
+         style={{ 
+           backgroundImage: `linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)`,
+           backgroundSize: '40px 40px'
+         }}>
+    </div>
+    <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-zinc-950/80 via-transparent to-zinc-950/80"></div>
+  </div>
+);
+
+// Standard HTML Loading indicator for the Project View
+// This avoids using 3D Text inside Suspense which causes the crash
+const HTMLProjectLoader = () => (
+  <div className="absolute inset-0 flex flex-col items-center justify-center text-white z-20">
+     <Loader2 className="w-8 h-8 animate-spin text-sky-500 mb-2" />
+     <span className="text-xs font-mono tracking-widest text-zinc-500">LOADING_ASSETS...</span>
+  </div>
+);
+
+const ProjectView3D = ({ project }) => (
+  <div className="w-full h-full relative bg-zinc-900">
+    <div className="absolute top-6 left-6 z-10 flex flex-col gap-2 pointer-events-none">
+       <span className="text-xs font-mono text-sky-500 tracking-widest">INTERACTIVE_VIEWPORT</span>
+       <h2 className="text-2xl font-bold text-white">{project.title}</h2>
+    </div>
+    
+    {/* We render the Canvas inside a parent div */}
+    <Canvas shadows camera={{ position: [4, 4, 6], fov: 45 }}>
+      <color attach="background" args={['#09090b']} />
+      {/* Fallback is NULL here, we use the HTML loader overlay instead */}
+      <Suspense fallback={null}>
+        <ProjectScene project={project} />
+      </Suspense>
+    </Canvas>
+
+    {/* Overlay Loader (HTML) - Safest way to handle loading states */}
+    <Suspense fallback={<HTMLProjectLoader />}>
+        {/* This empty suspense boundary with a fallback allows us to show HTML while the canvas loads */}
+    </Suspense>
+    
+    <div className="absolute bottom-6 left-6 flex items-center gap-4 text-[10px] font-mono text-zinc-500 pointer-events-none">
+       <div className="flex items-center gap-1"><MousePointer2 size={10}/> DRAG TO ROTATE</div>
+       <div className="flex items-center gap-1"><Maximize size={10}/> SCROLL TO ZOOM</div>
+    </div>
+  </div>
+);
+
 // --- UI COMPONENTS ---
 
-// Animated Mechanical Diagram for Hero Section
 const MechanicalDiagram = () => {
   return (
     <div className="relative w-full h-64 md:h-80 border border-white/10 bg-zinc-900/30 backdrop-blur-sm rounded-lg p-6 flex flex-col">
@@ -278,23 +329,22 @@ const MechanicalDiagram = () => {
        </div>
 
        <div className="flex-1 relative overflow-hidden">
-          {/* Decorative Grid Background */}
           <div className="absolute inset-0 opacity-10" 
              style={{ backgroundImage: `linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)`, backgroundSize: '20px 20px' }}>
           </div>
           
-          {/* Animated Piston/Crank Mechanism (SVG) */}
           <svg viewBox="0 0 200 150" className="w-full h-full">
              <defs>
                 <pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
                    <line stroke="#334155" strokeWidth="1" y2="4"/>
                 </pattern>
+                <marker id="arrow" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+                  <path d="M0,0 L0,6 L9,3 z" fill="#f59e0b" />
+                </marker>
              </defs>
              
-             {/* Base/Cylinder */}
              <rect x="70" y="20" width="60" height="100" fill="none" stroke="#475569" strokeWidth="2" />
              
-             {/* Piston Head (Animating up/down) */}
              <motion.rect 
                 x="75" y="40" width="50" height="30" rx="2"
                 fill="url(#hatch)" stroke="#94a3b8" strokeWidth="2"
@@ -302,33 +352,29 @@ const MechanicalDiagram = () => {
                 transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
              />
              
-             {/* Connecting Rod */}
              <motion.line 
                 x1="100" y1="70" x2="100" y2="130"
                 stroke="#0ea5e9" strokeWidth="4" strokeLinecap="round"
                 animate={{ 
                    y1: [0, 40, 0],
-                   x2: [0, 20, 0, -20, 0], // Mocking rotary motion X offset
-                   y2: [0, 0, 0, 0, 0] // Fixed crank center Y relative to motion
+                   x2: [0, 20, 0, -20, 0],
+                   y2: [0, 0, 0, 0, 0]
                 }}
                 transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
              />
 
-             {/* Crank Wheel */}
              <circle cx="100" cy="130" r="15" fill="none" stroke="#64748b" strokeWidth="2" strokeDasharray="4 2"/>
              <motion.circle 
                 cx="100" cy="130" r="4" fill="#0ea5e9"
                 animate={{ rotate: 360 }}
                 transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-                style={{ originX: "100px", originY: "130px" }} // Rotate around center
+                style={{ originX: "100px", originY: "130px" }} 
              />
              
-             {/* Dimension Lines */}
-             <line x1="60" y1="20" x2="60" y2="120" stroke="#f59e0b" strokeWidth="1" markerEnd="url(#arrow)" />
+             <line x1="60" y1="20" x2="60" y2="120" stroke="#f59e0b" strokeWidth="1" />
              <text x="40" y="70" fill="#f59e0b" fontSize="8" fontFamily="monospace" transform="rotate(-90 40,70)">100mm STROKE</text>
           </svg>
 
-          {/* Overlay Data */}
           <div className="absolute top-2 right-2 text-[10px] font-mono text-zinc-400 flex flex-col gap-1">
              <span className="flex justify-between w-20"><span>RPM:</span> <span className="text-white">1500</span></span>
              <span className="flex justify-between w-20"><span>LOAD:</span> <span className="text-white">45N</span></span>
@@ -461,23 +507,7 @@ const ProjectModal = ({ project, onClose }) => {
 
          {/* Left: 3D Viewport */}
          <div className="w-full lg:w-2/3 h-1/2 lg:h-full relative bg-zinc-900 border-b lg:border-b-0 lg:border-r border-white/10">
-            <div className="absolute top-6 left-6 z-10 flex flex-col gap-2 pointer-events-none">
-               <span className="text-xs font-mono text-sky-500 tracking-widest">INTERACTIVE_VIEWPORT</span>
-               <h2 className="text-2xl font-bold text-white">{project.title}</h2>
-            </div>
-            <Canvas shadows camera={{ position: [4, 4, 6], fov: 45 }}>
-              <color attach="background" args={['#09090b']} />
-              <Suspense fallback={
-                 <Text position={[0,0,0]} fontSize={0.5} color="white">LOADING ASSETS...</Text>
-              }>
-                <ProjectScene project={project} />
-              </Suspense>
-            </Canvas>
-            
-            <div className="absolute bottom-6 left-6 flex items-center gap-4 text-[10px] font-mono text-zinc-500">
-               <div className="flex items-center gap-1"><MousePointer2 size={10}/> DRAG TO ROTATE</div>
-               <div className="flex items-center gap-1"><Maximize size={10}/> SCROLL TO ZOOM</div>
-            </div>
+            <ProjectView3D project={project} />
          </div>
 
          {/* Right: Data Panel */}
@@ -600,31 +630,15 @@ export default function App() {
   return (
     <div className="bg-zinc-950 text-slate-50 min-h-screen font-sans selection:bg-sky-500/30">
       
-      <div className="fixed inset-0 z-0">
-        <Canvas dpr={[1, 2]} gl={{ antialias: true }}>
-          <Suspense fallback={null}>
-            <MainScene />
-          </Suspense>
-        </Canvas>
-        
-        <div className="absolute inset-0 pointer-events-none opacity-[0.03]" 
-             style={{ 
-               backgroundImage: `linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)`,
-               backgroundSize: '40px 40px'
-             }}>
-        </div>
-        <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-zinc-950/80 via-transparent to-zinc-950/80"></div>
-      </div>
+      <BackgroundView />
 
       <Navbar activeSection={activeSection} scrollToSection={scrollToSection} />
 
       <main className="relative z-10 pt-20">
         
-        {/* REDESIGNED HERO: TECHNICAL BLUEPRINT FOCUS */}
         <section id="hero" ref={el => sectionsRef.current.hero = el} className="min-h-screen flex flex-col justify-center px-6 lg:px-12">
            <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
               
-              {/* Left: Typography */}
               <motion.div 
                 initial={{ opacity: 0, x: -30 }} 
                 animate={{ opacity: 1, x: 0 }} 
@@ -674,7 +688,6 @@ export default function App() {
                  </div>
               </motion.div>
 
-              {/* Right: Live Mechanical Diagram */}
               <motion.div 
                  initial={{ opacity: 0, scale: 0.95 }}
                  animate={{ opacity: 1, scale: 1 }}
@@ -683,7 +696,6 @@ export default function App() {
               >
                  <MechanicalDiagram />
                  
-                 {/* Schematic Annotations */}
                  <div className="mt-4 flex justify-between text-[10px] font-mono text-zinc-600">
                     <div className="flex gap-4">
                        <span>REF: ISO-9001</span>
@@ -705,7 +717,6 @@ export default function App() {
            </motion.div>
         </section>
 
-        {/* ... (Rest of sections: Profile, Projects, Contact remain unchanged) ... */}
         <section id="profile" ref={el => sectionsRef.current.profile = el} className="py-32 px-6 lg:px-12 bg-zinc-950/50 border-t border-white/5 backdrop-blur-sm">
            <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
               <div>
