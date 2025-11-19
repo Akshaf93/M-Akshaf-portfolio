@@ -32,12 +32,10 @@ import {
   Terminal,
   ChevronRight,
   MousePointer2,
-  Gauge,
   Maximize,
-  Activity,
-  Server,
-  Database,
-  Layers as LayersIcon
+  Layers as LayersIcon,
+  ArrowRight,
+  BoxSelect
 } from 'lucide-react';
 
 // --- THEME CONFIG ---
@@ -160,7 +158,7 @@ const MainScene = () => {
   );
 };
 
-// 3. CUSTOM GLB LOADER - FIXED CENTERING
+// 3. CUSTOM GLB LOADER - WITH AUTO-HIDING FOR FLOORS
 const CustomRoverModel = () => {
   const { scene } = useGLTF('/rover_model.glb'); 
   
@@ -168,19 +166,32 @@ const CustomRoverModel = () => {
     if (scene) {
         scene.traverse((child) => {
             if (child.isMesh) {
+                // --- GEOMETRY FILTERING ---
+                // Compute bounding box to detect "floor" plates
+                child.geometry.computeBoundingBox();
+                const size = new THREE.Vector3();
+                child.geometry.boundingBox.getSize(size);
+                
+                // If an object is wider than 10 units, it's likely a floor environment. HIDE IT.
+                if (size.x > 10 || size.z > 10) {
+                  child.visible = false;
+                  return; 
+                }
+
+                // --- MATERIAL OVERRIDE ---
                 child.castShadow = true;
                 child.receiveShadow = true;
+                // Apply a dark matte metallic material to prevent whiteout
                 child.material = new THREE.MeshStandardMaterial({ 
-                    color: '#e2e8f0', 
-                    roughness: 0.5,
-                    metalness: 0.2
+                    color: '#64748b',  // Dark Slate Grey
+                    roughness: 0.7,    // Matte finish to reduce glare
+                    metalness: 0.5
                 });
             }
         });
     }
   }, [scene]);
   
-  // <Center> ensures the model rotates around its geometric center
   return (
     <Center top>
       <primitive object={scene} scale={1.5} />
@@ -197,29 +208,27 @@ const GenericCADModel = ({ color }) => (
   </Center>
 );
 
-// 4. PROJECT SCENE COMPONENT - FIXED SHADOWS
+// 4. PROJECT SCENE COMPONENT - CLEAN GRID ONLY
 const ProjectScene = ({ project }) => {
   return (
     <>
       <OrbitControls enablePan={true} autoRotate autoRotateSpeed={0.8} makeDefault />
       
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[5, 8, 5]} intensity={1.2} castShadow />
-      <directionalLight position={[-5, 3, -5]} intensity={0.5} color="#0ea5e9" />
+      <ambientLight intensity={0.4} />
+      
+      {/* Controlled Directional Light */}
+      <directionalLight position={[5, 8, 5]} intensity={1.0} castShadow />
+      <directionalLight position={[-5, 3, -5]} intensity={0.3} color="#0ea5e9" />
+      
       <Environment preset="city" />
       
       <Float speed={2} rotationIntensity={0.1} floatIntensity={0.1} floatingRange={[-0.05, 0.05]}>
           {project.id === 'rover' ? <CustomRoverModel /> : <GenericCADModel color={project.colorStr} />}
       </Float>
       
-      {/* FIXED SHADOWS: Removed ContactShadows (the grey disc) */}
-      {/* Replaced with a clean Engineering Grid and Invisible Shadow Plane */}
+      {/* ONLY GRID - NO SHADOW PLANE to prevent white circle artifacts */}
       <group position={[0, -0.5, 0]}>
-        <gridHelper args={[20, 20, '#334155', '#1e293b']} />
-        <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-          <planeGeometry args={[20, 20]} />
-          <shadowMaterial opacity={0.4} />
-        </mesh>
+        <gridHelper args={[20, 20, '#1e293b', '#0f172a']} />
       </group>
     </>
   );
@@ -229,10 +238,10 @@ const ProjectScene = ({ project }) => {
 
 const Navbar = ({ activeSection, scrollToSection }) => {
   const navItems = [
-    { id: 'hero', label: 'STATUS' },
+    { id: 'hero', label: 'HOME' },
     { id: 'profile', label: 'PROFILE' },
-    { id: 'projects', label: 'MODULES' },
-    { id: 'contact', label: 'COMMS' }
+    { id: 'projects', label: 'PROJECTS' },
+    { id: 'contact', label: 'CONTACT' }
   ];
 
   return (
@@ -330,7 +339,7 @@ const ProjectModal = ({ project, onClose }) => {
       exit={{ opacity: 0, scale: 0.95 }}
       className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-8 bg-black/80 backdrop-blur-sm"
     >
-      {/* Modal Size: Increased to use most of the screen */}
+      {/* Modal Size */}
       <div className="w-[95vw] max-w-[1800px] h-[92vh] bg-zinc-950 border border-white/10 rounded-xl overflow-hidden flex flex-col lg:flex-row shadow-2xl shadow-black relative">
          
          <button 
@@ -395,7 +404,6 @@ const ProjectModal = ({ project, onClose }) => {
                   <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
                     <LayersIcon size={14} className="text-sky-500" /> Render Gallery
                   </h3>
-                  {/* Gallery with clickable lightbox */}
                   <div className="grid grid-cols-2 gap-3">
                      {[1,2,3,4].map(i => (
                        <div 
@@ -502,86 +510,93 @@ export default function App() {
 
       <main className="relative z-10 pt-20">
         
-        {/* REDESIGNED HERO: SYSTEM DASHBOARD */}
+        {/* REDESIGNED HERO: SCHEMATIC FOCUS */}
         <section id="hero" ref={el => sectionsRef.current.hero = el} className="min-h-screen flex flex-col justify-center px-6 lg:px-12">
            <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
               
-              {/* Left: Core Identity */}
+              {/* Left: Typography & Value Prop */}
               <motion.div 
                 initial={{ opacity: 0, x: -30 }} 
                 animate={{ opacity: 1, x: 0 }} 
                 transition={{ duration: 0.8 }}
               >
-                 <div className="inline-block px-3 py-1 mb-6 text-[10px] font-mono text-emerald-400 bg-emerald-900/20 border border-emerald-500/20 rounded-full tracking-widest">
-                    ● SYSTEM_ONLINE
+                 <div className="inline-block px-3 py-1 mb-6 text-[10px] font-mono text-sky-400 border border-sky-500/30 bg-sky-900/10 rounded tracking-widest uppercase">
+                    Mechanical Design & Analysis
                  </div>
                  
-                 <h1 className="text-6xl md:text-8xl font-bold text-white tracking-tight leading-none mb-6">
-                    MECH<br />
-                    <span className="text-zinc-700">ENGINEER</span>
+                 <h1 className="text-5xl md:text-7xl font-bold text-white tracking-tight leading-[1.1] mb-6">
+                    Designing <br />
+                    Robust <span className="text-sky-500">Systems</span>.
                  </h1>
                  
-                 <p className="text-xl text-zinc-400 max-w-md leading-relaxed font-light mb-10 border-l-2 border-sky-500 pl-6">
-                    High-precision CAD design, Computational Fluid Dynamics, and Robotics integration.
+                 <p className="text-lg text-zinc-400 max-w-md leading-relaxed font-light mb-10">
+                    Delivering precision hardware solutions through advanced simulation, data-driven optimization, and fabrication.
                  </p>
 
                  <div className="flex flex-col sm:flex-row gap-4">
                     <button 
                       onClick={() => scrollToSection('projects')}
-                      className="px-8 py-4 bg-white text-black font-bold text-sm rounded hover:bg-sky-400 hover:text-white transition-all flex items-center justify-center gap-2 shadow-xl shadow-white/5"
+                      className="group px-8 py-4 bg-white text-black font-bold text-sm rounded hover:bg-sky-400 hover:text-white transition-all flex items-center justify-center gap-3 shadow-xl shadow-white/5"
                     >
-                       <Activity size={16} /> VIEW SIMULATIONS
+                       VIEW PORTFOLIO <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform"/>
                     </button>
                     <button 
                       onClick={() => scrollToSection('contact')}
-                      className="px-8 py-4 bg-zinc-900 text-zinc-300 border border-zinc-800 font-bold text-sm rounded hover:border-sky-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                      className="px-8 py-4 bg-transparent text-zinc-300 border border-zinc-700 font-bold text-sm rounded hover:border-sky-500 hover:text-white transition-all flex items-center justify-center gap-2"
                     >
-                       INITIALIZE CONTACT
+                       CONTACT
                     </button>
                  </div>
               </motion.div>
 
-              {/* Right: Live Status Dashboard */}
+              {/* Right: Schematic Visualizer */}
               <motion.div 
                  initial={{ opacity: 0, x: 30 }}
                  animate={{ opacity: 1, x: 0 }}
                  transition={{ delay: 0.2, duration: 0.8 }}
-                 className="hidden lg:block"
+                 className="hidden lg:flex justify-center relative"
               >
-                 <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-8 backdrop-blur-md relative overflow-hidden">
-                    {/* Decorative Scan Line */}
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-sky-500 to-transparent animate-pulse"></div>
-                    
-                    <div className="grid grid-cols-2 gap-6 mb-8">
-                       <div>
-                          <div className="text-xs font-mono text-zinc-500 mb-1">CURRENT_STATUS</div>
-                          <div className="text-2xl font-bold text-emerald-400 flex items-center gap-2">
-                             ACTIVE <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span>
-                          </div>
-                       </div>
-                       <div>
-                          <div className="text-xs font-mono text-zinc-500 mb-1">LOCATION</div>
-                          <div className="text-2xl font-bold text-white">REMOTE</div>
+                 {/* Decorative Schematic Box */}
+                 <div className="relative w-80 h-80 border border-white/10 bg-zinc-900/30 backdrop-blur-sm rounded-lg p-6 flex flex-col justify-between">
+                    {/* Corner Accents */}
+                    <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-sky-500"></div>
+                    <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-sky-500"></div>
+                    <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-sky-500"></div>
+                    <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-sky-500"></div>
+
+                    {/* Content inside the box */}
+                    <div className="text-xs font-mono text-zinc-500 flex justify-between">
+                       <span>FIG 1.0</span>
+                       <span>SCHEMATIC_VIEW</span>
+                    </div>
+
+                    <div className="flex-1 flex items-center justify-center">
+                       {/* Animated Node Graph Representation */}
+                       <div className="relative w-32 h-32">
+                          <div className="absolute inset-0 border border-dashed border-zinc-700 rounded-full animate-spin-slow"></div>
+                          <div className="absolute inset-4 border border-zinc-700 rounded-full"></div>
+                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 bg-sky-500 rounded-full shadow-[0_0_15px_rgba(14,165,233,0.5)]"></div>
+                          
+                          {/* Connecting Lines */}
+                          <div className="absolute top-1/2 left-1/2 w-16 h-[1px] bg-zinc-700 origin-left rotate-45"></div>
+                          <div className="absolute top-1/2 left-1/2 w-16 h-[1px] bg-zinc-700 origin-left rotate-[135deg]"></div>
+                          <div className="absolute top-1/2 left-1/2 w-16 h-[1px] bg-zinc-700 origin-left rotate-[270deg]"></div>
+
+                          {/* Nodes */}
+                          <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 px-2 py-1 bg-zinc-900 border border-zinc-700 text-[10px] text-zinc-300">CAD</div>
+                          <div className="absolute bottom-4 right-0 px-2 py-1 bg-zinc-900 border border-zinc-700 text-[10px] text-zinc-300">FEA</div>
+                          <div className="absolute bottom-4 left-0 px-2 py-1 bg-zinc-900 border border-zinc-700 text-[10px] text-zinc-300">MFG</div>
                        </div>
                     </div>
 
-                    <div className="space-y-6">
-                       <div className="bg-black/40 p-4 rounded border border-white/5">
-                          <div className="flex justify-between text-xs font-mono text-zinc-400 mb-2">
-                             <span>CORE_COMPETENCY_LOAD</span>
-                             <span>98%</span>
-                          </div>
-                          <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                             <div className="h-full w-[98%] bg-sky-500"></div>
-                          </div>
+                    <div className="text-[10px] font-mono text-zinc-600 mt-4">
+                       <div className="flex justify-between border-b border-zinc-800 pb-1 mb-1">
+                          <span>OPTIMIZATION</span>
+                          <span>ACTIVE</span>
                        </div>
-
-                       <div className="grid grid-cols-3 gap-2">
-                          {['ANSYS', 'SOLIDWORKS', 'PYTHON', 'MATLAB', 'C++', 'ROS'].map((tool) => (
-                             <div key={tool} className="text-[10px] font-mono text-center py-2 bg-white/5 rounded text-zinc-400 border border-white/5">
-                                {tool}
-                             </div>
-                          ))}
+                       <div className="flex justify-between">
+                          <span>TOLERANCE</span>
+                          <span>±0.05mm</span>
                        </div>
                     </div>
                  </div>
@@ -590,9 +605,8 @@ export default function App() {
            </div>
         </section>
 
-        {/* Existing sections... */}
+        {/* ... (Profile, Projects, Contact sections maintained) ... */}
         <section id="profile" ref={el => sectionsRef.current.profile = el} className="py-32 px-6 lg:px-12 bg-zinc-950/50 border-t border-white/5 backdrop-blur-sm">
-           {/* ... (Profile content maintained) ... */}
            <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
               <div>
                  <h2 className="text-3xl font-bold mb-6 flex items-center gap-3">
@@ -644,7 +658,6 @@ export default function App() {
         </section>
 
         <section id="projects" ref={el => sectionsRef.current.projects = el} className="py-32 px-6 lg:px-12">
-           {/* ... (Projects content maintained) ... */}
            <div className="max-w-7xl mx-auto">
               <div className="flex items-end justify-between mb-12">
                  <div>
@@ -671,7 +684,6 @@ export default function App() {
         </section>
 
         <section id="contact" ref={el => sectionsRef.current.contact = el} className="py-32 px-6 bg-zinc-950 border-t border-white/10">
-           {/* ... (Contact content maintained) ... */}
            <div className="max-w-3xl mx-auto text-center">
               <h2 className="text-5xl font-bold mb-8">Ready to collaborate?</h2>
               <p className="text-zinc-400 text-lg mb-12">
